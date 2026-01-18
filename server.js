@@ -1,19 +1,23 @@
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
-const sqlite3 = require('sqlite3').verbose();
+const { createClient } = require('@libsql/client');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(cors());
+app.use(express.static(__dirname)); // Servir archivos estáticos (frontend)
 
-// --- CONFIGURACIÓN DE BASE DE DATOS ---
-const db = new sqlite3.Database('./bolsa_historial.db');
+// --- CONFIGURACIÓN DE BASE DE DATOS (TURSO) ---
+const db = createClient({
+    url: process.env.TURSO_DATABASE_URL || 'file:local.db', // Fallback para local si quieres
+    authToken: process.env.TURSO_AUTH_TOKEN
+});
 
 // Crear tabla si no existe
-db.serialize(() => {
-    db.run(`CREATE TABLE IF NOT EXISTS precios (
+async function initDB() {
+    await db.execute(`CREATE TABLE IF NOT EXISTS precios (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         symbol TEXT,
         nombre TEXT,
@@ -26,7 +30,8 @@ db.serialize(() => {
         icon TEXT,
         fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
-});
+}
+initDB();
 
 // Función para obtener y guardar datos
 async function fetchAndStore() {
@@ -37,19 +42,23 @@ async function fetchAndStore() {
         });
         
         const data = response.data;
-        const stmt = db.prepare(`INSERT INTO precios (symbol, nombre, precio, var_abs, var_rel, volumen, monto_efectivo, hora, icon) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-
-        data.forEach(item => {
-            stmt.run(
+        
+        // Preparamos las sentencias para inserción por lotes (batch)
+        const statements = data.map(item => ({
+            sql: `INSERT INTO precios (symbol, nombre, precio, var_abs, var_rel, volumen, monto_efectivo, hora, icon) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            args: [
                 item.COD_SIMB, item.DESC_SIMB, parseFloat(item.PRECIO), 
                 item.VAR_ABS, item.VAR_REL, item.VOLUMEN, 
                 parseFloat(item.MONTO_EFECTIVO), item.HORA, item.ICON
-            );
-        });
-        stmt.finalize();
+            ]
+        }));
+
+        if (statements.length > 0) {
+            await db.batch(statements, 'write');
+        }
         
-       // Cambia '-7 days' por '-30 days' en la función fetchAndStore
-db.run("DELETE FROM precios WHERE fecha_registro <= date('now','-30 days')");
+        // Limpieza de datos antiguos (30 días)
+        await db.execute("DELETE FROM precios WHERE fecha_registro <= date('now','-30 days')");
         
         console.log(`[${new Date().toLocaleTimeString()}] Datos guardados y limpieza de 7 días ejecutada.`);
     } catch (error) {
@@ -64,28 +73,29 @@ fetchAndStore(); // Ejecución inicial
 // --- RUTAS API ---
 
 // 1. Obtener estado actual (últimos registros)
-app.get('/api/bolsa/actual', (req, res) => {
-    db.all(`SELECT * FROM precios WHERE fecha_registro = (SELECT MAX(fecha_registro) FROM precios)`, [], (err, rows) => {
-        if (err) return res.status(500).json({error: err.message});
-        res.json(rows);
-    });
+app.get('/api/bolsa/actual', async (req, res) => {
+    try {
+        const result = await db.execute(`SELECT * FROM precios WHERE fecha_registro = (SELECT MAX(fecha_registro) FROM precios)`);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({error: err.message});
+    }
 });
 
 // Obtener historial con rango dinámico
-app.get('/api/bolsa/historial/:symbol/:days', (req, res) => {
+app.get('/api/bolsa/historial/:symbol/:days', async (req, res) => {
     const { symbol, days } = req.params;
     const daysLimit = parseInt(days) || 1;
     
-    db.all(`
-        SELECT precio, hora, fecha_registro 
-        FROM precios 
-        WHERE symbol = ? 
-        AND fecha_registro >= date('now', '-' || ? || ' days')
-        ORDER BY fecha_registro ASC
-    `, [symbol, daysLimit], (err, rows) => {
-        if (err) return res.status(500).json({error: err.message});
-        res.json(rows);
-    });
+    try {
+        const result = await db.execute({
+            sql: `SELECT precio, hora, fecha_registro FROM precios WHERE symbol = ? AND fecha_registro >= date('now', '-' || ? || ' days') ORDER BY fecha_registro ASC`,
+            args: [symbol, daysLimit]
+        });
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({error: err.message});
+    }
 });
 
 app.listen(PORT, () => console.log(`Servidor con DB corriendo en http://localhost:${PORT}`));
