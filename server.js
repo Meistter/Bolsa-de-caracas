@@ -14,14 +14,19 @@ app.use(express.static(__dirname)); // Servir archivos estáticos (frontend)
 const dbUrl = process.env.TURSO_DATABASE_URL;
 const dbToken = process.env.TURSO_AUTH_TOKEN;
 
-if (!dbUrl || !dbToken) {
-    console.error("⚠️  ADVERTENCIA: Faltan variables de entorno (TURSO_DATABASE_URL o TURSO_AUTH_TOKEN).");
+console.log(`🔌 Estado de conexión: URL=${dbUrl ? 'Configurada' : 'No definida'}, Token=${dbToken ? 'Configurado' : 'No definido'}`);
+
+const config = {
+    url: dbUrl || 'file:local.db',
+};
+
+// Solo usamos el token si estamos conectados a una URL remota (no local)
+// Esto evita el error "fetching migration jobs" si la configuración falla
+if (dbUrl && !dbUrl.startsWith('file:')) {
+    config.authToken = dbToken;
 }
 
-const db = createClient({
-    url: dbUrl || 'file:local.db', // Fallback para local si quieres
-    authToken: dbToken
-});
+const db = createClient(config);
 
 // Crear tabla si no existe
 async function initDB() {
