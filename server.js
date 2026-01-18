@@ -10,26 +10,38 @@ app.use(cors());
 app.use(express.static(__dirname)); // Servir archivos estáticos (frontend)
 
 // --- CONFIGURACIÓN DE BASE DE DATOS (TURSO) ---
+const dbUrl = process.env.TURSO_DATABASE_URL;
+const dbToken = process.env.TURSO_AUTH_TOKEN;
+
+if (!dbUrl || !dbToken) {
+    console.error("⚠️  ADVERTENCIA: Faltan variables de entorno (TURSO_DATABASE_URL o TURSO_AUTH_TOKEN).");
+}
+
 const db = createClient({
-    url: process.env.TURSO_DATABASE_URL || 'file:local.db', // Fallback para local si quieres
-    authToken: process.env.TURSO_AUTH_TOKEN
+    url: dbUrl || 'file:local.db', // Fallback para local si quieres
+    authToken: dbToken
 });
 
 // Crear tabla si no existe
 async function initDB() {
-    await db.execute(`CREATE TABLE IF NOT EXISTS precios (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        symbol TEXT,
-        nombre TEXT,
-        precio REAL,
-        var_abs TEXT,
-        var_rel TEXT,
-        volumen TEXT,
-        monto_efectivo REAL,
-        hora TEXT,
-        icon TEXT,
-        fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
+    try {
+        await db.execute(`CREATE TABLE IF NOT EXISTS precios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            symbol TEXT,
+            nombre TEXT,
+            precio REAL,
+            var_abs TEXT,
+            var_rel TEXT,
+            volumen TEXT,
+            monto_efectivo REAL,
+            hora TEXT,
+            icon TEXT,
+            fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        console.log("✅ Conexión a base de datos exitosa y tabla verificada.");
+    } catch (error) {
+        console.error("❌ Error conectando a la base de datos:", error.message);
+    }
 }
 initDB();
 
