@@ -14,15 +14,19 @@ app.use(express.static(__dirname)); // Servir archivos estáticos (frontend)
 const dbUrl = process.env.TURSO_DATABASE_URL;
 const dbToken = process.env.TURSO_AUTH_TOKEN;
 
-console.log(`🔌 Estado de conexión: URL=${dbUrl ? 'Configurada' : 'No definida'}, Token=${dbToken ? 'Configurado' : 'No definido'}`);
+// 🛠️ CORRECCIÓN AUTOMÁTICA:
+// Si la URL viene como libsql://, la forzamos a https:// para evitar el error de "migration jobs" en Render.
+const finalDbUrl = dbUrl?.replace('libsql://', 'https://');
+
+console.log(`🔌 Estado de conexión: URL=${finalDbUrl ? 'Configurada (Forzada a HTTPS)' : 'No definida'}, Token=${dbToken ? 'Configurado' : 'No definido'}`);
 
 const config = {
-    url: dbUrl || 'file:local.db',
+    url: finalDbUrl || 'file:local.db',
 };
 
 // Solo usamos el token si estamos conectados a una URL remota (no local)
 // Esto evita el error "fetching migration jobs" si la configuración falla
-if (dbUrl && !dbUrl.startsWith('file:')) {
+if (finalDbUrl && !finalDbUrl.startsWith('file:')) {
     config.authToken = dbToken;
 }
 
