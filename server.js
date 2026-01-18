@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
-const { createClient } = require('@libsql/client');
+const { Pool } = require('pg');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,36 +10,19 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.static(__dirname)); // Servir archivos estáticos (frontend)
 
-// --- CONFIGURACIÓN DE BASE DE DATOS (TURSO) ---
-const dbUrl = process.env.TURSO_DATABASE_URL;
-const dbToken = process.env.TURSO_AUTH_TOKEN;
-
-// 🛠️ LIMPIEZA DE VARIABLES:
-// Eliminamos comillas extra y espacios que pueden causar errores de conexión (Error 400)
-const cleanUrl = dbUrl ? dbUrl.replace(/^"|"$/g, '').trim() : null;
-const cleanToken = dbToken ? dbToken.replace(/^"|"$/g, '').trim() : null;
-
-// Forzamos libsql:// (WebSockets) porque el driver HTTP (https://) da error de "migration jobs"
-const finalDbUrl = cleanUrl?.replace('https://', 'libsql://');
-
-console.log(`🔌 Estado de conexión: URL=${finalDbUrl ? 'Configurada' : 'No definida'}, Token=${cleanToken ? 'Configurado' : 'No definido'}`);
-
-const config = {
-    url: finalDbUrl || 'file:local.db',
-    intMode: 'number', // Evita errores de BigInt en respuestas JSON
-};
-
-if (finalDbUrl && !finalDbUrl.startsWith('file:')) {
-    config.authToken = cleanToken;
-}
-
-const db = createClient(config);
+// --- CONFIGURACIÓN DE BASE DE DATOS (SUPABASE / POSTGRES) ---
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+        rejectUnauthorized: false // Necesario para conexiones seguras a Supabase/Render
+    }
+});
 
 // Crear tabla si no existe
 async function initDB() {
     try {
-        await db.execute(`CREATE TABLE IF NOT EXISTS precios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+        await pool.query(`CREATE TABLE IF NOT EXISTS precios (
+            id SERIAL PRIMARY KEY,
             symbol TEXT,
             nombre TEXT,
             precio REAL,
@@ -49,9 +32,9 @@ async function initDB() {
             monto_efectivo REAL,
             hora TEXT,
             icon TEXT,
-            fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP
+            fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`);
-        console.log("✅ Conexión a base de datos exitosa y tabla verificada.");
+        console.log("✅ Conexión a Supabase (Postgres) exitosa y tabla verificada.");
     } catch (error) {
         console.error("❌ Error conectando a la base de datos:", error.message);
     }
@@ -75,27 +58,31 @@ async function fetchAndStore() {
         return; // Detenemos aquí si no hay datos para guardar
     }
 
-    // 2. INTENTO DE GUARDADO (Base de Datos)
+    // 2. INTENTO DE GUARDADO (Base de Datos Postgres)
+    const client = await pool.connect();
     try {
-        // Preparamos las sentencias para inserción por lotes (batch)
-        const statements = scrapedData.map(item => ({
-            sql: `INSERT INTO precios (symbol, nombre, precio, var_abs, var_rel, volumen, monto_efectivo, hora, icon) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            args: [
+        await client.query('BEGIN'); // Iniciar transacción
+
+        const insertQuery = `INSERT INTO precios (symbol, nombre, precio, var_abs, var_rel, volumen, monto_efectivo, hora, icon) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`;
+
+        for (const item of scrapedData) {
+            await client.query(insertQuery, [
                 item.COD_SIMB, item.DESC_SIMB, parseFloat(item.PRECIO), 
                 item.VAR_ABS, item.VAR_REL, item.VOLUMEN, 
                 parseFloat(item.MONTO_EFECTIVO), item.HORA, item.ICON
-            ]
-        }));
-
-        if (statements.length > 0) {
-            await db.batch(statements, 'write');
-            console.log("✅ Datos guardados exitosamente en Turso.");
+            ]);
         }
         
-        // Limpieza de datos antiguos (30 días)
-        await db.execute("DELETE FROM precios WHERE fecha_registro <= date('now','-30 days')");
+        // Limpieza de datos antiguos (30 días) - Sintaxis Postgres
+        await client.query("DELETE FROM precios WHERE fecha_registro <= NOW() - INTERVAL '30 days'");
+        
+        await client.query('COMMIT'); // Confirmar cambios
+        console.log("✅ Datos guardados exitosamente en Supabase.");
     } catch (error) {
-        console.error("❌ Error guardando en base de datos (Turso):", error.message);
+        await client.query('ROLLBACK');
+        console.error("❌ Error guardando en base de datos:", error.message);
+    } finally {
+        client.release();
     }
 }
 
@@ -110,7 +97,7 @@ initDB().then(() => {
 // 1. Obtener estado actual (últimos registros)
 app.get('/api/bolsa/actual', async (req, res) => {
     try {
-        const result = await db.execute(`SELECT * FROM precios WHERE fecha_registro = (SELECT MAX(fecha_registro) FROM precios)`);
+        const result = await pool.query(`SELECT * FROM precios WHERE fecha_registro = (SELECT MAX(fecha_registro) FROM precios)`);
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({error: err.message});
@@ -123,14 +110,15 @@ app.get('/api/bolsa/historial/:symbol/:days', async (req, res) => {
     const daysLimit = parseInt(days) || 1;
     
     try {
-        const result = await db.execute({
-            sql: `SELECT precio, hora, fecha_registro FROM precios WHERE symbol = ? AND fecha_registro >= date('now', '-' || ? || ' days') ORDER BY fecha_registro ASC`,
-            args: [symbol, daysLimit]
-        });
+        // Sintaxis Postgres para parámetros ($1, $2) y fechas
+        const result = await pool.query(
+            `SELECT precio, hora, fecha_registro FROM precios WHERE symbol = $1 AND fecha_registro >= NOW() - ($2 || ' days')::INTERVAL ORDER BY fecha_registro ASC`,
+            [symbol, daysLimit]
+        );
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({error: err.message});
     }
 });
 
-app.listen(PORT, () => console.log(`Servidor con DB corriendo en http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));
