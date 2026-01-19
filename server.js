@@ -126,7 +126,7 @@ async function fetchAndStore(force = false) {
             let nombreInterpretado = companyMap[item.DESC_SIMB.trim()];
             
             if (!nombreInterpretado) {
-                console.log(`⚠️ [DICCIONARIO] Nombre no encontrado en company_names.js: "${item.DESC_SIMB.trim()}". Usando original.`);
+                console.log(`⚠️ [DICCIONARIO] Nombre no encontrado: ${JSON.stringify(item.DESC_SIMB.trim())}. Usando original.`);
                 nombreInterpretado = item.DESC_SIMB;
             }
 
