@@ -10,8 +10,10 @@ async function fetchData() {
   try {
     const response = await fetch(`${API_BASE}/actual`);
     marketData = await response.json();
-    document.getElementById("status-text").innerText =
-      `Última Sincronización: ${new Date().toLocaleTimeString()}`;
+    if (marketData.length > 0) {
+      const lastUpdate = new Date(marketData[0].fecha_registro);
+      document.getElementById("status-text").innerText = `Última Sincronización: ${lastUpdate.toLocaleTimeString()}`;
+    }
 // 
     updateGeneralView();
     updateSidebar();
