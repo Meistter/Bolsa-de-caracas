@@ -2,9 +2,11 @@ require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
+const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const { IgApiClient } = require('instagram-private-api');
 const { writeFile, readFile } = require('fs').promises;
 const { Pool } = require('pg');
+const cron = require('node-cron');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -33,29 +35,19 @@ async function loginToInstagram() {
     console.log("🔄 Intentando iniciar sesión en Instagram...");
     ig.state.generateDevice(process.env.IG_USERNAME);
 
-    // Guardar la sesión para no tener que iniciarla cada vez
-    ig.state.serialize = async (data) => {
-        return JSON.stringify(data);
-    };
-    ig.state.deserialize = async (data) => {
-        if (typeof data === 'string') {
-            ig.state.deviceString = JSON.parse(data).deviceString;
-            ig.state.deviceId = JSON.parse(data).deviceId;
-        }
-    };
-
     try {
         // Intentar cargar una sesión guardada
         const sessionFile = 'ig-session.json';
         if (await readFile(sessionFile, 'utf8').catch(() => false)) {
             const session = await readFile(sessionFile, 'utf8');
-            await ig.state.deserialize(session);
+            await ig.state.deserialize(JSON.parse(session));
             console.log("✅ Sesión de Instagram cargada desde archivo.");
         } else {
             // Si no hay sesión, iniciar con credenciales y guardarla
             await ig.account.login(process.env.IG_USERNAME, process.env.IG_PASSWORD);
             const session = await ig.state.serialize();
-            await writeFile(sessionFile, session, 'utf8');
+            delete session.constants; // Evita conflictos al serializar
+            await writeFile(sessionFile, JSON.stringify(session), 'utf8');
             console.log("✅ Inicio de sesión en Instagram exitoso. Sesión guardada.");
         }
         igLoggedIn = true;
@@ -157,6 +149,18 @@ initDB().then(() => {
     loginToInstagram();
     setInterval(fetchAndStore, fetch_time);
 
+    // --- CRON JOB: Publicación Automática ---
+    // Lunes a Viernes (1-5) a la 1:00 PM (13:00) Hora Caracas
+    cron.schedule('0 13 * * 1-5', async () => {
+        console.log("🕐 Ejecutando publicación automática programada...");
+        try {
+            await publishToInstagram();
+            console.log("✅ Publicación automática completada.");
+        } catch (error) {
+            console.error("❌ Error en publicación automática:", error.message);
+        }
+    }, { timezone: "America/Caracas" });
+
     // --- KEEP ALIVE PARA RENDER ---
     // Evita que el servidor se duerma haciendo una petición a sí mismo cada 14 min
     // const APP_URL = process.env.RENDER_EXTERNAL_URL; 
@@ -196,49 +200,144 @@ app.get('/api/fetch-data', async (req, res) => {
 //     }
 // });
 
-// Endpoint para publicar un resumen en Instagram
-app.post('/api/instagram/post-summary', async (req, res) => {
+// Función reutilizable para publicar en Instagram
+async function publishToInstagram() {
     if (!igLoggedIn) {
-        return res.status(503).json({ error: "No se ha iniciado sesión en Instagram. Revisa las credenciales del servidor." });
+        throw new Error("No se ha iniciado sesión en Instagram. Revisa las credenciales del servidor.");
     }
 
-    try {
-        // 1. Obtener los datos más recientes del mercado
-        const marketResponse = await pool.query(`SELECT * FROM precios WHERE fecha_registro = (SELECT MAX(fecha_registro) FROM precios) ORDER BY var_rel DESC`);
-        const marketData = marketResponse.rows;
+    // 1. Obtener los datos más recientes del mercado
+    const marketResponse = await pool.query(`SELECT * FROM precios WHERE fecha_registro = (SELECT MAX(fecha_registro) FROM precios) ORDER BY var_rel DESC`);
+    const marketData = marketResponse.rows;
 
-        if (marketData.length === 0) {
-            return res.status(404).json({ error: "No hay datos de mercado para publicar." });
+    if (marketData.length === 0) {
+        throw new Error("No hay datos de mercado para publicar.");
+    }
+
+    // 2. Procesar datos: Ordenar por Volumen y tomar Top 5
+    // Función auxiliar para limpiar formato numérico VE (1.000,00 -> 1000.00)
+    const parseVE = (str) => {
+        if (!str) return 0;
+        // Eliminar puntos de miles y reemplazar coma decimal por punto
+        const clean = str.toString().replace(/\./g, '').replace(',', '.');
+        return parseFloat(clean) || 0;
+    };
+
+    // Ordenar de mayor a menor volumen y tomar los 5 primeros
+    const topVolumen = marketData
+        .sort((a, b) => parseVE(b.volumen) - parseVE(a.volumen))
+        .slice(0, 5);
+
+    const lastUpdate = new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas' });
+    
+    let caption = `Top 5 Acciones con más volumen del día\n
+    📊 Bolsa de Valores de Caracas\n\n`;
+    caption += `🗓️ ${lastUpdate}\n\n`;
+    
+    for (const [i, stock] of topVolumen.entries()) {
+        const icon = parseFloat(stock.var_abs) >= 0 ? '🟢' : '🔴';
+        caption += `${i + 1}. ${stock.symbol}: ${parseFloat(stock.precio).toLocaleString('es-VE')} VES (${icon} ${stock.var_rel}%)\n`;
+    }
+
+    caption += `\n#BolsaDeCaracas #Graficas #Charts #Envivo #MercadoDeValores #TopVolumen #Venezuela #Finanzas\n`;
+    caption += `Información con fines educativos.`;
+
+    // 3. Generar imagen con Canvas (Diseño tipo "Canva")
+    console.log("🖼️  Generando imagen personalizada...");
+    const width = 1080;
+    const height = 1080;
+    const canvas = createCanvas(width, height);
+    const ctx = canvas.getContext('2d');
+
+    // -- FONDO --
+    ctx.fillStyle = '#0f172a'; // Color de fondo oscuro (igual a tu app)
+    ctx.fillRect(0, 0, width, height);
+
+    // -- TÍTULO --
+    ctx.fillStyle = '#38bdf8'; // Azul claro
+    ctx.font = 'bold 60px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Top 5 acciones del día', width / 2, 140);
+    
+    ctx.fillStyle = '#94a3b8'; // Gris claro
+    ctx.font = '30px sans-serif';
+    ctx.fillText('Volumen de transacciones', width / 2, 200);
+
+    // -- LISTA DE ACCIONES --
+    const startY = 320;
+    const rowHeight = 130;
+
+    for (const [i, stock] of topVolumen.entries()) {
+        const y = startY + (i * rowHeight);
+        const isUp = parseFloat(stock.var_abs) >= 0;
+        const color = isUp ? '#22c55e' : '#e70000'; // Verde o Rojo
+        const arrow = isUp ? '▲' : '▼';
+
+        // Fondo de la fila (tarjeta)
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(50, y - 80, 980, 110);
+
+        // Rank (1., 2., etc)
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 45px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(`${i + 1}.`, 70, y);
+
+        // Logo
+        try {
+            if (stock.icon) {
+                const logo = await loadImage(stock.icon);
+                // Centrar logo verticalmente (60x60)
+                ctx.drawImage(logo, 120, y - 55, 60, 60);
+            }
+        } catch (e) {
+            console.log(`No se pudo cargar logo para ${stock.symbol}`);
         }
 
-        // 2. Generar el texto (caption) para la publicación
-        const topMover = marketData.find(d => parseFloat(d.var_rel) !== 0) || marketData[0];
-        const lastUpdate = new Date(topMover.fecha_registro).toLocaleString('es-VE', { timeZone: 'America/Caracas' });
+        // Símbolo y Nombre
+        const textStartX = 200;
+        ctx.fillText(stock.symbol, textStartX, y);
         
-        let caption = `📊 Resumen del Mercado de Valores de Caracas\n`;
-        caption += `🗓️ ${lastUpdate}\n\n`;
-        caption += `📈 Acción destacada: ${topMover.nombre} (${topMover.symbol})\n`;
-        caption += `Precio: ${parseFloat(topMover.precio).toLocaleString('es-VE')} VES\n`;
-        caption += `Variación: ${topMover.var_abs} (${topMover.var_rel}%)\n\n`;
-        caption += `#BolsaDeCaracas #MercadoDeValores #Inversiones #Venezuela #Finanzas\n\n`;
-        caption += `(Información con fines educativos. No es una recomendación de inversión.)`;
+        const symbolWidth = ctx.measureText(stock.symbol).width;
+        ctx.fillStyle = '#94a3b8'; // Gris claro para el nombre
+        ctx.font = '30px sans-serif';
+        ctx.fillText(stock.nombre, textStartX + symbolWidth + 15, y);
 
-        // 3. Generar una imagen para publicar.
-        //    Para este ejemplo, usamos una imagen de placeholder. En una implementación real,
-        //    podrías usar 'node-canvas' y 'chart.js' para generar un gráfico dinámico.
-        console.log("🖼️  Obteniendo imagen para la publicación...");
-        const imageUrl = `https://via.placeholder.com/1080x1080.png/020617/FFFFFF?text=${encodeURIComponent(topMover.symbol)}`;
-        const imageResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-        const imageBuffer = Buffer.from(imageResponse.data, 'binary');
+        // Precio (Derecha Arriba)
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 40px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(`${parseFloat(stock.precio).toLocaleString('es-VE')} VES`, 980, y - 10);
 
-        // 4. Publicar en Instagram
-        console.log(`🚀 Publicando en Instagram sobre ${topMover.symbol}...`);
-        await ig.publish.photo({
-            file: imageBuffer,
-            caption: caption,
-        });
+        // Variación (Derecha Abajo)
+        ctx.font = '30px sans-serif';
+        ctx.fillStyle = color;
+        ctx.fillText(`${arrow} ${stock.var_rel}%`, 980, y + 25);
+    }
 
-        res.json({ success: true, message: `Publicación sobre ${topMover.symbol} enviada a Instagram.` });
+    // -- FOOTER --
+    ctx.fillStyle = '#64748b';
+    ctx.font = '25px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Visita www.bolsa-de-valores.onrender.com para ver gráficos en tiempo real.', width / 2, 1040);
+
+    const imageBuffer = canvas.toBuffer('image/jpeg');
+
+    // 4. Publicar en Instagram
+    console.log(`🚀 Publicando Top 5 en Instagram...`);
+    await ig.publish.photo({
+        file: imageBuffer,
+        caption: caption,
+    });
+    
+    return { success: true };
+}
+
+// Endpoint para publicar un resumen en Instagram (Manual)
+app.post('/api/instagram/post-summary', async (req, res) => {
+    try {
+        await publishToInstagram();
+        res.json({ success: true, message: `Top 5 publicado en Instagram exitosamente.` });
     } catch (error) {
         console.error("❌ Error al publicar en Instagram:", error.message);
         res.status(500).json({ error: "Error interno del servidor al intentar publicar.", details: error.message });

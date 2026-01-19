@@ -28,7 +28,7 @@ coverage
 *.lcov
 .env
 local.db
-
+bolsa_historial.db
 # nyc test coverage
 .nyc_output
 
