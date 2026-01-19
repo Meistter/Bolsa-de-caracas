@@ -1,5 +1,5 @@
 const API_BASE = "/api/bolsa";
-const UPDATE_INTERVAL = 300000;
+let UPDATE_INTERVAL = 600000; // Valor por defecto
 let marketData = [];
 const charts = {};
 let mainChart = null;
@@ -220,5 +220,17 @@ function initChart(canvasId, storageId, isLarge) {
   else charts[storageId] = new Chart(ctx, config);
 }
 
-setInterval(fetchData, UPDATE_INTERVAL);
-fetchData();
+// Inicialización asíncrona para obtener configuración del servidor
+async function initApp() {
+  try {
+    const res = await fetch('/api/config');
+    const config = await res.json();
+    if (config.updateInterval) UPDATE_INTERVAL = config.updateInterval;
+  } catch (e) {
+    console.warn("No se pudo cargar config, usando intervalo por defecto.");
+  }
+  fetchData();
+  setInterval(fetchData, UPDATE_INTERVAL);
+}
+
+initApp();

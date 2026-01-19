@@ -6,7 +6,7 @@ const { Pool } = require('pg');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
+const fetch_time = parseInt(process.env.UPDATE_INTERVAL) || 600000;
 app.use(cors());
 app.use(express.static(__dirname)); // Servir archivos estáticos (frontend)
 
@@ -44,7 +44,20 @@ async function initDB() {
 }
 
 // Función para obtener y guardar datos
-async function fetchAndStore() {
+async function fetchAndStore(force = false) {
+    if (!force) {
+        const now = new Date();
+        // Convertimos a hora de Caracas para verificar horario (Lunes-Viernes, 9am-1pm)
+        const caracasTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Caracas" }));
+        const day = caracasTime.getDay(); // 0 = Domingo, 6 = Sábado
+        const hour = caracasTime.getHours();
+
+        if (day === 0 || day === 6 || hour < 9 || hour >= 13) {
+            console.log(`💤 Mercado cerrado (Caracas: ${caracasTime.toLocaleTimeString()}). No se actualizarán datos.`);
+            return;
+        }
+    }
+
     let scrapedData = [];
 
     // 1. INTENTO DE DESCARGA (Scraping)
@@ -95,26 +108,35 @@ async function fetchAndStore() {
 
 // Ejecutar cada 5 minutos (300.000 ms)
 initDB().then(() => {
-    fetchAndStore(); // Ejecución inicial
-    setInterval(fetchAndStore, 300000);
+    setInterval(fetchAndStore, fetch_time);
 
     // --- KEEP ALIVE PARA RENDER ---
     // Evita que el servidor se duerma haciendo una petición a sí mismo cada 14 min
-    const APP_URL = process.env.RENDER_EXTERNAL_URL; 
-    if (APP_URL) {
-        console.log(`⏰ Keep-Alive activado apuntando a: ${APP_URL}`);
-        setInterval(() => {
-            axios.get(`${APP_URL}/api/bolsa/actual`).catch(() => {});
-        }, 840000); // 14 minutos (Render duerme a los 15)
-    }
+    // const APP_URL = process.env.RENDER_EXTERNAL_URL; 
+    // if (APP_URL) {
+    //     console.log(`⏰ Keep-Alive activado apuntando a: ${APP_URL}`);
+    //     setInterval(() => {
+    //         axios.get(`${APP_URL}/api/update-manual`).catch(() => {});
+    //     }, 840000); // 14 minutos (Render duerme a los 15)
+    // }
 });
 
 // --- RUTAS API ---
 
-// Endpoint para forzar actualización (útil para cron jobs externos)
+// Endpoint para compartir configuración con el frontend
+app.get('/api/config', (req, res) => {
+    res.json({ updateInterval: fetch_time });
+});
+
+// Endpoint para mantener la app viva (Keep-Alive)
 app.get('/api/update-manual', (req, res) => {
-    fetchAndStore(); 
-    res.send('Actualización disparada manualmente.');
+    res.send('App activa (Keep-Alive).');
+});
+
+// Endpoint para forzar actualización de datos (incluso fuera de horario)
+app.get('/api/fetch-data', async (req, res) => {
+    await fetchAndStore(true);
+    res.send('Actualización manual ejecutada.');
 });
 
 // 1. Obtener estado actual (últimos registros)
