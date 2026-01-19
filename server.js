@@ -37,6 +37,9 @@ async function initDB() {
         console.log("✅ Conexión a Supabase (Postgres) exitosa y tabla verificada.");
     } catch (error) {
         console.error("❌ Error conectando a la base de datos:", error.message);
+        if (error.code === 'ENOTFOUND') {
+            console.error("💡 SUGERENCIA: Es probable que tu proyecto de Supabase esté PAUSADO. Ve a supabase.com y haz clic en 'Restore'.");
+        }
     }
 }
 
@@ -59,8 +62,9 @@ async function fetchAndStore() {
     }
 
     // 2. INTENTO DE GUARDADO (Base de Datos Postgres)
-    const client = await pool.connect();
+    let client;
     try {
+        client = await pool.connect();
         await client.query('BEGIN'); // Iniciar transacción
 
         const insertQuery = `INSERT INTO precios (symbol, nombre, precio, var_abs, var_rel, volumen, monto_efectivo, hora, icon) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`;
@@ -79,10 +83,13 @@ async function fetchAndStore() {
         await client.query('COMMIT'); // Confirmar cambios
         console.log("✅ Datos guardados exitosamente en Supabase.");
     } catch (error) {
-        await client.query('ROLLBACK');
+        if (client) await client.query('ROLLBACK');
         console.error("❌ Error guardando en base de datos:", error.message);
+        if (error.code === 'ENOTFOUND') {
+            console.error("💡 SUGERENCIA: Es probable que tu proyecto de Supabase esté PAUSADO. Ve a supabase.com y haz clic en 'Restore'.");
+        }
     } finally {
-        client.release();
+        if (client) client.release();
     }
 }
 
