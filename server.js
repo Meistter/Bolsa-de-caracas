@@ -7,6 +7,7 @@ const { IgApiClient } = require('instagram-private-api');
 const { writeFile, readFile } = require('fs').promises;
 const { Pool } = require('pg');
 const cron = require('node-cron');
+const companyMap = require('./company_names'); // Importar diccionario de nombres
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -121,8 +122,16 @@ async function fetchAndStore(force = false) {
         const insertQuery = `INSERT INTO precios (symbol, nombre, precio, var_abs, var_rel, volumen, monto_efectivo, hora, icon) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`;
 
         for (const item of scrapedData) {
+            // Usar el diccionario para interpretar el nombre
+            let nombreInterpretado = companyMap[item.DESC_SIMB];
+            
+            if (!nombreInterpretado) {
+                console.log(`⚠️ [DICCIONARIO] Nombre no encontrado en company_names.js: "${item.DESC_SIMB}". Usando original.`);
+                nombreInterpretado = item.DESC_SIMB;
+            }
+
             await client.query(insertQuery, [
-                item.COD_SIMB, item.DESC_SIMB, parseFloat(item.PRECIO), 
+                item.COD_SIMB, nombreInterpretado, parseFloat(item.PRECIO), 
                 item.VAR_ABS, item.VAR_REL, item.VOLUMEN, 
                 parseFloat(item.MONTO_EFECTIVO), item.HORA, item.ICON
             ]);
