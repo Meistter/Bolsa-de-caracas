@@ -166,11 +166,26 @@ app.get('/api/bolsa/historial/:symbol/:days', async (req, res) => {
     const daysLimit = parseInt(days) || 1;
     
     try {
-        // Sintaxis Postgres para parámetros ($1, $2) y fechas
-        const result = await pool.query(
-            `SELECT precio, hora, fecha_registro FROM precios WHERE symbol = $1 AND fecha_registro >= NOW() - ($2 || ' days')::INTERVAL ORDER BY fecha_registro ASC`,
-            [symbol, daysLimit]
-        );
+        let result;
+        if (daysLimit === 1) {
+            // Rango 1 día: Mostrar todos los puntos (Intradía)
+            result = await pool.query(
+                `SELECT precio, hora, fecha_registro FROM precios WHERE symbol = $1 AND fecha_registro >= NOW() - INTERVAL '1 day' ORDER BY fecha_registro ASC`,
+                [symbol]
+            );
+        } else {
+            // Rango > 1 día: Mostrar solo 1 punto por día (El último registro/cierre de cada día)
+            result = await pool.query(
+                `SELECT * FROM (
+                    SELECT DISTINCT ON (DATE(fecha_registro))
+                        precio, hora, fecha_registro
+                    FROM precios
+                    WHERE symbol = $1 AND fecha_registro >= NOW() - ($2 || ' days')::INTERVAL
+                    ORDER BY DATE(fecha_registro) ASC, fecha_registro DESC
+                ) sub ORDER BY fecha_registro ASC`,
+                [symbol, daysLimit]
+            );
+        }
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({error: err.message});

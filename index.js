@@ -71,11 +71,12 @@ async function loadHistory(symbol, days, isLarge) {
 
         if (!isLarge) return timePart;
 
-        // Si son 30 días, mostramos la fecha cada 12 registros para limpiar el eje X
+        // Si son 30 días, mostramos la fecha cada 5 días (ya que ahora hay 1 punto por día)
         if (days >= 15) {
-          return index % 12 === 0 ? `${datePart} ${timePart}` : "";
+          return index % 5 === 0 ? datePart : "";
         }
-        return days > 1 ? `${datePart} ${timePart}` : timePart;
+        // Para rangos > 1 día (3 o 7), mostramos solo la fecha
+        return days > 1 ? datePart : timePart;
       });
 
       chart.data.datasets[0].data = history.map((h) => h.precio);
