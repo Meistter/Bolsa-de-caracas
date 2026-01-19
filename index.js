@@ -1,5 +1,5 @@
 const API_BASE = "/api/bolsa";
-const UPDATE_INTERVAL = 1800000;
+const UPDATE_INTERVAL = 300000;
 let marketData = [];
 const charts = {};
 let mainChart = null;

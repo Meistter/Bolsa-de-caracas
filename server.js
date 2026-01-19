@@ -96,10 +96,26 @@ async function fetchAndStore() {
 // Ejecutar cada 5 minutos (300.000 ms)
 initDB().then(() => {
     fetchAndStore(); // Ejecución inicial
-    setInterval(fetchAndStore, 1800000);
+    setInterval(fetchAndStore, 300000);
+
+    // --- KEEP ALIVE PARA RENDER ---
+    // Evita que el servidor se duerma haciendo una petición a sí mismo cada 14 min
+    const APP_URL = process.env.RENDER_EXTERNAL_URL; 
+    if (APP_URL) {
+        console.log(`⏰ Keep-Alive activado apuntando a: ${APP_URL}`);
+        setInterval(() => {
+            axios.get(`${APP_URL}/api/bolsa/actual`).catch(() => {});
+        }, 840000); // 14 minutos (Render duerme a los 15)
+    }
 });
 
 // --- RUTAS API ---
+
+// Endpoint para forzar actualización (útil para cron jobs externos)
+app.get('/api/update-manual', (req, res) => {
+    fetchAndStore(); 
+    res.send('Actualización disparada manualmente.');
+});
 
 // 1. Obtener estado actual (últimos registros)
 app.get('/api/bolsa/actual', async (req, res) => {
