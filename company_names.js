@@ -1,6 +1,6 @@
 module.exports = {
     "BCO. CARIBE \"A\"": "Bancaribe (Clase A)",
-    "ARCAINM.VAL. \"B\"": "Arca Inm. Val. (Clase B",
+    "ARCA INM.VAL. \"B\"": "Arca Inm. Val. (Clase B",
     "BCO.NAC.CREDITO": "Banco Nacional de Crédito",
     "BCO. PROVINCIAL": "Banco Provincial",
     "BOLSA V. CCAS.": "Bolsa de Valores de Caracas",
@@ -25,7 +25,7 @@ module.exports = {
     "MERCANTIL S.(B)": "Mercantil S. (Clase B)",
     "F.PETROLIA \"B\"": "F. Petrolia (Clase B)",
     "PROAGRO": "Proagro",
-    "PIVCACLASE \"B\"": "Pivca (Clase B)",
+    "PIVCA CLASE \"B\"": "Pivca (Clase B)",
     "PROTINAL": "Protinal",
     "RON STA. TERESA": "Ron Santa Teresa",
     "R.S.TERESA \"B\"": "Ron Santa Teresa (Clase B)",

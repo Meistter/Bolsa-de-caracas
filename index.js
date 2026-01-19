@@ -162,7 +162,7 @@ function updateGeneralView() {
                         <div class="company-header">
                             <img src="${item.icon}" class="logo" onerror="this.src='https://via.placeholder.com/32'">
                             <div>
-                                <div style="color:var(--accent); font-weight:bold; font-size:1rem">${id}</div>
+                                <div style="color:var(--accent); font-weight:bold; font-size:0.9rem">${id}</div>
                                 <div style="font-size:0.9rem; color:#94a3b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:180px;">${item.nombre}</div>
                             </div>
                         </div>
