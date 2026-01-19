@@ -63,16 +63,19 @@ async function loadHistory(symbol, days, isLarge) {
     if (chart && history.length > 0) {
       // Lógica de etiquetas: Si el rango es grande, mostramos menos etiquetas para que no se amontonen
       chart.data.labels = history.map((h, index) => {
-        const datePart = h.fecha_registro.split(" ")[0].substring(5); // mm-dd
-        const timePart = h.hora.substring(0, 5); // hh:mm
+        const dateObj = new Date(h.fecha_registro);
+        const timePart = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const day = String(dateObj.getDate()).padStart(2, '0');
+        const datePart = `${month}-${day}`;
 
-        if (!isLarge) return h.hora;
+        if (!isLarge) return timePart;
 
         // Si son 30 días, mostramos la fecha cada 12 registros para limpiar el eje X
         if (days >= 15) {
           return index % 12 === 0 ? `${datePart} ${timePart}` : "";
         }
-        return days > 1 ? `${datePart} ${timePart}` : h.hora;
+        return days > 1 ? `${datePart} ${timePart}` : timePart;
       });
 
       chart.data.datasets[0].data = history.map((h) => h.precio);

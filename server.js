@@ -140,15 +140,15 @@ app.get('/api/fetch-data', async (req, res) => {
     res.send('Actualización manual ejecutada.');
 });
 
-// Endpoint para limpiar toda la base de datos manualmente
-app.get('/api/clear-data', async (req, res) => {
-    try {
-        await pool.query('TRUNCATE TABLE precios');
-        res.send('✅ Base de datos limpiada completamente.');
-    } catch (error) {
-        res.status(500).send('❌ Error al limpiar la base de datos: ' + error.message);
-    }
-});
+// // Endpoint para limpiar toda la base de datos manualmente
+// app.get('/api/clear-data', async (req, res) => {
+//     try {
+//         await pool.query('TRUNCATE TABLE precios');
+//         res.send('✅ Base de datos limpiada completamente.');
+//     } catch (error) {
+//         res.status(500).send('❌ Error al limpiar la base de datos: ' + error.message);
+//     }
+// });
 
 // 1. Obtener estado actual (últimos registros)
 app.get('/api/bolsa/actual', async (req, res) => {
