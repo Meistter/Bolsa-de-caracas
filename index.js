@@ -12,7 +12,7 @@ async function fetchData() {
     marketData = await response.json();
     document.getElementById("status-text").innerText =
       `Última Sincronización: ${new Date().toLocaleTimeString()}`;
-
+// 
     updateGeneralView();
     updateSidebar();
 
