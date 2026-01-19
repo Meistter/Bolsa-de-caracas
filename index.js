@@ -71,7 +71,7 @@ function createGlobalRangeSelector() {
   [1, 3, 7, 15, 30].forEach((days) => {
     const btn = document.createElement("button");
     btn.className = `range-btn ${days === globalRange ? "active" : ""}`;
-    btn.innerText = days === 1 ? "Hoy" : `${days}D`;
+    btn.innerText = days === 1 ? "Hoy" : `${days} Días`;
     btn.onclick = () => setGlobalRange(days, btn);
     container.appendChild(btn);
   });

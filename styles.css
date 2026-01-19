@@ -15,8 +15,12 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  overflow: hidden; /* Oculta el scroll */
+  overflow-y: hidden; /* Oculta el scroll vertical en toda la APP */
   
+}
+
+html {
+    overflow-y: hidden; /* Oculta el scroll vertical en toda la APP */
 }
 nav {
   background: #1e293b;
