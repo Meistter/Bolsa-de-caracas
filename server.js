@@ -96,7 +96,7 @@ async function fetchAndStore() {
 // Ejecutar cada 5 minutos (300.000 ms)
 initDB().then(() => {
     fetchAndStore(); // Ejecución inicial
-    setInterval(fetchAndStore, 300000);
+    setInterval(fetchAndStore, 1800000);
 });
 
 // --- RUTAS API ---
