@@ -1,3 +1,9 @@
+// Configurar Favicon (logo.ico)
+const faviconLink = document.createElement("link");
+faviconLink.rel = "icon";
+faviconLink.href = "logo.ico";
+document.head.appendChild(faviconLink);
+
 const API_BASE = "/api/bolsa";
 const POLL_INTERVAL = 60000; // Consultar cada 60 segundos para detectar cambios rápido
 let marketData = [];

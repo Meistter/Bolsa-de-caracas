@@ -15,8 +15,8 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  overflow-y: hidden; /* Oculta el scroll vertical en toda la APP */
-  
+  overflow-y: hidden;
+  overflow-x: hidden;
 }
 
 /* Estilos de Scrollbar personalizados */
@@ -66,6 +66,7 @@ nav button.active {
 #view-single {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   width: 100%;
 }
 #view-single {
@@ -111,12 +112,24 @@ nav button.active {
   display: flex;
   height: 100%;
   width: 100%;
+  position: relative;
 }
 .sidebar {
-  width: 300px;
+  width: 60px;
   background: #0b1120;
   border-right: 1px solid #334155;
   overflow-y: auto;
+  overflow-x: hidden;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 50;
+  transition: width 0.3s ease;
+}
+.sidebar:hover {
+  width: 300px;
+  box-shadow: 5px 0 15px rgba(0,0,0,0.5);
 }
 .sidebar-item {
   padding: 12px;
@@ -125,6 +138,15 @@ nav button.active {
   display: flex;
   align-items: center;
   gap: 10px;
+  white-space: nowrap;
+}
+.sidebar-item span {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.sidebar:hover .sidebar-item span {
+  opacity: 1;
+  transition-delay: 0.1s;
 }
 .sidebar-item.active {
   border-left: 4px solid var(--accent);
@@ -136,7 +158,25 @@ nav button.active {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  overflow-x: hidden;
+  margin-left: 60px;
 }
+
+@media (min-width: 768px) {
+  .sidebar {
+    width: 300px;
+  }
+  .sidebar:hover {
+    box-shadow: none;
+  }
+  .sidebar-item span {
+    opacity: 1;
+  }
+  .main-chart-area {
+    margin-left: 300px;
+  }
+}
+
 .big-chart-container {
   background: #1e293b;
   border-radius: 15px;
