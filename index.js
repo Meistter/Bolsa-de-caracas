@@ -5,6 +5,7 @@ const charts = {};
 let mainChart = null;
 let selectedSymbol = null;
 let currentRange = 1;
+let globalRange = 7; // Rango por defecto para el dashboard general
 let lastUpdateTimestamp = null;
 
 async function fetchData() {
@@ -32,9 +33,10 @@ async function fetchData() {
 
     updateGeneralView();
     updateSidebar();
+    createGlobalRangeSelector();
 
-    // Las miniaturas siempre muestran solo "Hoy" para ahorrar recursos
-    marketData.forEach((item) => loadHistory(item.symbol, 1, false));
+    // Las miniaturas usan el rango global seleccionado
+    marketData.forEach((item) => loadHistory(item.symbol, globalRange, false));
 
     if (selectedSymbol) {
       updateIndividualView();
@@ -54,6 +56,39 @@ async function setRange(days, btn) {
   if (selectedSymbol) await loadHistory(selectedSymbol, currentRange, true);
 }
 
+// Función para crear e inyectar el selector global si no existe
+function createGlobalRangeSelector() {
+  const viewAll = document.getElementById("view-all");
+  if (!viewAll || document.getElementById("global-range-selector")) return;
+
+  const container = document.createElement("div");
+  container.id = "global-range-selector";
+  container.className = "range-selector";
+  container.style.maxWidth = "1400px";
+  container.style.margin = "20px auto 0 auto";
+  container.style.padding = "0 20px";
+
+  [1, 3, 7, 15, 30].forEach((days) => {
+    const btn = document.createElement("button");
+    btn.className = `range-btn ${days === globalRange ? "active" : ""}`;
+    btn.innerText = days === 1 ? "Hoy" : `${days}D`;
+    btn.onclick = () => setGlobalRange(days, btn);
+    container.appendChild(btn);
+  });
+
+  const dashboard = document.getElementById("dashboard");
+  viewAll.insertBefore(container, dashboard);
+}
+
+async function setGlobalRange(days, btn) {
+  globalRange = days;
+  const container = document.getElementById("global-range-selector");
+  Array.from(container.children).forEach((b) => b.classList.remove("active"));
+  btn.classList.add("active");
+  // Recargar todas las gráficas del dashboard
+  marketData.forEach((item) => loadHistory(item.symbol, globalRange, false));
+}
+
 async function loadHistory(symbol, days, isLarge) {
   try {
     const response = await fetch(`${API_BASE}/historial/${symbol}/${days}`);
@@ -70,7 +105,7 @@ async function loadHistory(symbol, days, isLarge) {
         const day = String(dateObj.getDate()).padStart(2, '0');
         const datePart = `${day}/${month}/${year}`;
 
-        if (!isLarge) return timePart;
+        if (!isLarge) return days > 1 ? datePart : timePart;
 
         // Si son 30 días, mostramos la fecha cada 5 días (ya que ahora hay 1 punto por día)
         if (days >= 15) {
