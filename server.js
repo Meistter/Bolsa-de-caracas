@@ -123,10 +123,10 @@ async function fetchAndStore(force = false) {
 
         for (const item of scrapedData) {
             // Usar el diccionario para interpretar el nombre
-            let nombreInterpretado = companyMap[item.DESC_SIMB];
+            let nombreInterpretado = companyMap[item.DESC_SIMB.trim()];
             
             if (!nombreInterpretado) {
-                console.log(`⚠️ [DICCIONARIO] Nombre no encontrado en company_names.js: "${item.DESC_SIMB}". Usando original.`);
+                console.log(`⚠️ [DICCIONARIO] Nombre no encontrado en company_names.js: "${item.DESC_SIMB.trim()}". Usando original.`);
                 nombreInterpretado = item.DESC_SIMB;
             }
 
@@ -357,7 +357,12 @@ app.post('/api/instagram/post-summary', async (req, res) => {
 app.get('/api/bolsa/actual', async (req, res) => {
     try {
         const result = await pool.query(`SELECT * FROM precios WHERE fecha_registro = (SELECT MAX(fecha_registro) FROM precios)`);
-        res.json(result.rows);
+        const rows = result.rows.map(row => {
+            const mapped = companyMap[row.nombre.trim()];
+            if (mapped) row.nombre = mapped;
+            return row;
+        });
+        res.json(rows);
     } catch (err) {
         res.status(500).json({error: err.message});
     }
