@@ -65,9 +65,10 @@ async function loadHistory(symbol, days, isLarge) {
       chart.data.labels = history.map((h, index) => {
         const dateObj = new Date(h.fecha_registro);
         const timePart = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        const year = dateObj.getFullYear();
         const month = String(dateObj.getMonth() + 1).padStart(2, '0');
         const day = String(dateObj.getDate()).padStart(2, '0');
-        const datePart = `${month}-${day}`;
+        const datePart = `${day}/${month}/${year}`;
 
         if (!isLarge) return timePart;
 
