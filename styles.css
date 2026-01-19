@@ -19,8 +19,25 @@ body {
   
 }
 
-html{
-  scrollbar-width: none;
+/* Estilos de Scrollbar personalizados */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--card) var(--bg);
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--card);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
 }
 
 nav {
