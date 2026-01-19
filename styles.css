@@ -19,9 +19,10 @@ body {
   
 }
 
-html {
-    overflow-y: hidden; /* Oculta el scroll vertical en toda la APP */
+html{
+  scrollbar-width: none;
 }
+
 nav {
   background: #1e293b;
   padding: 10px 20px;
