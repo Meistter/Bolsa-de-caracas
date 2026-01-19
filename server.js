@@ -7,6 +7,7 @@ const { Pool } = require('pg');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const fetch_time = parseInt(process.env.UPDATE_INTERVAL) || 600000;
+const cleanup_days = parseInt(process.env.DB_CLEANUP_DAYS) || 30;
 app.use(cors());
 app.use(express.static(__dirname)); // Servir archivos estáticos (frontend)
 
@@ -90,8 +91,8 @@ async function fetchAndStore(force = false) {
             ]);
         }
         
-        // Limpieza de datos antiguos (30 días) - Sintaxis Postgres
-        await client.query("DELETE FROM precios WHERE fecha_registro <= NOW() - INTERVAL '30 days'");
+        // Limpieza de datos antiguos (Configurable vía variable de entorno)
+        await client.query(`DELETE FROM precios WHERE fecha_registro <= NOW() - INTERVAL '${cleanup_days} days'`);
         
         await client.query('COMMIT'); // Confirmar cambios
         console.log("✅ Datos guardados exitosamente en Supabase.");
@@ -137,6 +138,16 @@ app.get('/api/update-manual', (req, res) => {
 app.get('/api/fetch-data', async (req, res) => {
     await fetchAndStore(true);
     res.send('Actualización manual ejecutada.');
+});
+
+// Endpoint para limpiar toda la base de datos manualmente
+app.get('/api/clear-data', async (req, res) => {
+    try {
+        await pool.query('TRUNCATE TABLE precios');
+        res.send('✅ Base de datos limpiada completamente.');
+    } catch (error) {
+        res.status(500).send('❌ Error al limpiar la base de datos: ' + error.message);
+    }
 });
 
 // 1. Obtener estado actual (últimos registros)
