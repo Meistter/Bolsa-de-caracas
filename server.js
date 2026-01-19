@@ -2,6 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
+const { IgApiClient } = require('instagram-private-api');
+const { writeFile, readFile } = require('fs').promises;
 const { Pool } = require('pg');
 
 const app = express();
@@ -18,6 +20,49 @@ const pool = new Pool({
         rejectUnauthorized: false // Necesario para conexiones seguras a Supabase/Render
     }
 });
+
+// --- INTEGRACIÓN CON INSTAGRAM ---
+const ig = new IgApiClient();
+let igLoggedIn = false;
+
+async function loginToInstagram() {
+    if (!process.env.IG_USERNAME || !process.env.IG_PASSWORD) {
+        console.log("⚠️  Credenciales de Instagram no encontradas en .env. La publicación en Instagram está deshabilitada.");
+        return;
+    }
+    console.log("🔄 Intentando iniciar sesión en Instagram...");
+    ig.state.generateDevice(process.env.IG_USERNAME);
+
+    // Guardar la sesión para no tener que iniciarla cada vez
+    ig.state.serialize = async (data) => {
+        return JSON.stringify(data);
+    };
+    ig.state.deserialize = async (data) => {
+        if (typeof data === 'string') {
+            ig.state.deviceString = JSON.parse(data).deviceString;
+            ig.state.deviceId = JSON.parse(data).deviceId;
+        }
+    };
+
+    try {
+        // Intentar cargar una sesión guardada
+        const sessionFile = 'ig-session.json';
+        if (await readFile(sessionFile, 'utf8').catch(() => false)) {
+            const session = await readFile(sessionFile, 'utf8');
+            await ig.state.deserialize(session);
+            console.log("✅ Sesión de Instagram cargada desde archivo.");
+        } else {
+            // Si no hay sesión, iniciar con credenciales y guardarla
+            await ig.account.login(process.env.IG_USERNAME, process.env.IG_PASSWORD);
+            const session = await ig.state.serialize();
+            await writeFile(sessionFile, session, 'utf8');
+            console.log("✅ Inicio de sesión en Instagram exitoso. Sesión guardada.");
+        }
+        igLoggedIn = true;
+    } catch (e) {
+        console.error("❌ Error al iniciar sesión en Instagram:", e.message);
+    }
+}
 
 // Crear tabla si no existe
 async function initDB() {
@@ -109,6 +154,7 @@ async function fetchAndStore(force = false) {
 
 // Ejecutar cada 5 minutos (300.000 ms)
 initDB().then(() => {
+    loginToInstagram();
     setInterval(fetchAndStore, fetch_time);
 
     // --- KEEP ALIVE PARA RENDER ---
@@ -149,6 +195,55 @@ app.get('/api/fetch-data', async (req, res) => {
 //         res.status(500).send('❌ Error al limpiar la base de datos: ' + error.message);
 //     }
 // });
+
+// Endpoint para publicar un resumen en Instagram
+app.post('/api/instagram/post-summary', async (req, res) => {
+    if (!igLoggedIn) {
+        return res.status(503).json({ error: "No se ha iniciado sesión en Instagram. Revisa las credenciales del servidor." });
+    }
+
+    try {
+        // 1. Obtener los datos más recientes del mercado
+        const marketResponse = await pool.query(`SELECT * FROM precios WHERE fecha_registro = (SELECT MAX(fecha_registro) FROM precios) ORDER BY var_rel DESC`);
+        const marketData = marketResponse.rows;
+
+        if (marketData.length === 0) {
+            return res.status(404).json({ error: "No hay datos de mercado para publicar." });
+        }
+
+        // 2. Generar el texto (caption) para la publicación
+        const topMover = marketData.find(d => parseFloat(d.var_rel) !== 0) || marketData[0];
+        const lastUpdate = new Date(topMover.fecha_registro).toLocaleString('es-VE', { timeZone: 'America/Caracas' });
+        
+        let caption = `📊 Resumen del Mercado de Valores de Caracas\n`;
+        caption += `🗓️ ${lastUpdate}\n\n`;
+        caption += `📈 Acción destacada: ${topMover.nombre} (${topMover.symbol})\n`;
+        caption += `Precio: ${parseFloat(topMover.precio).toLocaleString('es-VE')} VES\n`;
+        caption += `Variación: ${topMover.var_abs} (${topMover.var_rel}%)\n\n`;
+        caption += `#BolsaDeCaracas #MercadoDeValores #Inversiones #Venezuela #Finanzas\n\n`;
+        caption += `(Información con fines educativos. No es una recomendación de inversión.)`;
+
+        // 3. Generar una imagen para publicar.
+        //    Para este ejemplo, usamos una imagen de placeholder. En una implementación real,
+        //    podrías usar 'node-canvas' y 'chart.js' para generar un gráfico dinámico.
+        console.log("🖼️  Obteniendo imagen para la publicación...");
+        const imageUrl = `https://via.placeholder.com/1080x1080.png/020617/FFFFFF?text=${encodeURIComponent(topMover.symbol)}`;
+        const imageResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+        const imageBuffer = Buffer.from(imageResponse.data, 'binary');
+
+        // 4. Publicar en Instagram
+        console.log(`🚀 Publicando en Instagram sobre ${topMover.symbol}...`);
+        await ig.publish.photo({
+            file: imageBuffer,
+            caption: caption,
+        });
+
+        res.json({ success: true, message: `Publicación sobre ${topMover.symbol} enviada a Instagram.` });
+    } catch (error) {
+        console.error("❌ Error al publicar en Instagram:", error.message);
+        res.status(500).json({ error: "Error interno del servidor al intentar publicar.", details: error.message });
+    }
+});
 
 // 1. Obtener estado actual (últimos registros)
 app.get('/api/bolsa/actual', async (req, res) => {
