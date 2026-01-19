@@ -1,20 +1,35 @@
 const API_BASE = "/api/bolsa";
-let UPDATE_INTERVAL = 600000; // Valor por defecto
+const POLL_INTERVAL = 60000; // Consultar cada 60 segundos para detectar cambios rápido
 let marketData = [];
 const charts = {};
 let mainChart = null;
 let selectedSymbol = null;
 let currentRange = 1;
+let lastUpdateTimestamp = null;
 
 async function fetchData() {
   try {
     const response = await fetch(`${API_BASE}/actual`);
-    marketData = await response.json();
-    if (marketData.length > 0) {
-      const lastUpdate = new Date(marketData[0].fecha_registro);
-      document.getElementById("status-text").innerText = `Última Sincronización: ${lastUpdate.toLocaleTimeString()}`;
+    const newData = await response.json();
+
+    if (newData.length === 0) {
+      return; // No hay datos, no hacemos nada.
     }
-// 
+
+    const newTimestamp = newData[0].fecha_registro;
+
+    // Si la fecha del último registro es la misma, no repintamos nada.
+    if (newTimestamp === lastUpdateTimestamp) {
+      return;
+    }
+
+    // Datos nuevos detectados, actualizamos todo.
+    marketData = newData;
+    lastUpdateTimestamp = newTimestamp;
+
+    const lastUpdate = new Date(newTimestamp);
+    document.getElementById("status-text").innerText = `Última Sincronización: ${lastUpdate.toLocaleTimeString()}`;
+
     updateGeneralView();
     updateSidebar();
 
@@ -222,17 +237,6 @@ function initChart(canvasId, storageId, isLarge) {
   else charts[storageId] = new Chart(ctx, config);
 }
 
-// Inicialización asíncrona para obtener configuración del servidor
-async function initApp() {
-  try {
-    const res = await fetch('/api/config');
-    const config = await res.json();
-    if (config.updateInterval) UPDATE_INTERVAL = config.updateInterval;
-  } catch (e) {
-    console.warn("No se pudo cargar config, usando intervalo por defecto.");
-  }
-  fetchData();
-  setInterval(fetchData, UPDATE_INTERVAL);
-}
-
-initApp();
+// Iniciar la aplicación
+fetchData(); // Primera carga inmediata
+setInterval(fetchData, POLL_INTERVAL); // Actualización automática cada minuto
