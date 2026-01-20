@@ -16,6 +16,12 @@ let lastUpdateTimestamp = null;
 async function fetchData() {
   try {
     const response = await fetch(`${API_BASE}/actual`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      document.getElementById("status-text").innerText = `Error ${response.status}: ${response.statusText}\n${errorText}`;
+      console.error(`Error ${response.status}: ${response.statusText}`, errorText);
+      return;
+    }
     const newData = await response.json();
 
     if (newData.length === 0) {
@@ -48,7 +54,8 @@ async function fetchData() {
       loadHistory(selectedSymbol, currentRange, true);
     }
   } catch (error) {
-    document.getElementById("status-text").innerText = "Servidor Desconectado";
+    document.getElementById("status-text").innerText = `Servidor Desconectado: ${error.message}`;
+    console.error("Error en fetchData:", error);
   }
 }
 
