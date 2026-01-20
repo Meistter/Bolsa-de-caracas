@@ -248,7 +248,7 @@ async function publishToInstagram() {
         caption += `${i + 1}. ${stock.symbol}: ${parseFloat(stock.precio).toLocaleString('es-VE')} VES (${icon} ${stock.var_rel}%)\n`;
     }
 
-    caption += `\n#BolsaDeCaracas #Graficas #Charts #Envivo #MercadoDeValores #TopVolumen #Venezuela #Finanzas\n`;
+    caption += `\n#Bolsadecaracas #dinero #acciones #graficas #graficos #bolsa #valor #valores #caracas #envivo #MercadoDeValores #Venezuela #venezuela #venezolanos #Finanzas\n`;
     caption += `Información con fines educativos.`;
 
     // 3. Generar imagen con Canvas (Diseño tipo "Canva")
