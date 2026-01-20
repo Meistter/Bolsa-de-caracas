@@ -1,6 +1,6 @@
 module.exports = {
     "BCO. CARIBE \"A\"": "Bancaribe (Clase A)",
-    "ARCA INM.VAL.\"B\"": "Arca Inm. Val. (Clase B",
+    "ARCA INM.VAL.\"B\"": "Arca Inm. Val. (Clase B)",
     "BCO.NAC.CREDITO": "Banco Nacional de Crédito",
     "BCO. PROVINCIAL": "Banco Provincial",
     "BOLSA V. CCAS.": "Bolsa de Valores de Caracas",
