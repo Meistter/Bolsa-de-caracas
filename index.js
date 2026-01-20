@@ -34,7 +34,7 @@ async function fetchData() {
     lastUpdateTimestamp = newTimestamp;
 
     const lastUpdate = new Date(newTimestamp);
-    document.getElementById("status-text").innerText = `Última Sincronización: ${lastUpdate.toLocaleTimeString()}`;
+    document.getElementById("status-text").innerText = `Última Sincronización: ${lastUpdate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`;
 
     updateGeneralView();
     updateSidebar();
@@ -76,7 +76,7 @@ function createGlobalRangeSelector() {
   [1, 3, 7, 15, 30].forEach((days) => {
     const btn = document.createElement("button");
     btn.className = `range-btn ${days === globalRange ? "active" : ""}`;
-    btn.innerText = days === 1 ? "Hoy" : `${days} Días`;
+    btn.innerText = days === 1 ? "Últimas 24h" : `${days} Días`;
     btn.onclick = () => setGlobalRange(days, btn);
     container.appendChild(btn);
   });
@@ -104,20 +104,21 @@ async function loadHistory(symbol, days, isLarge) {
       // Lógica de etiquetas: Si el rango es grande, mostramos menos etiquetas para que no se amontonen
       chart.data.labels = history.map((h, index) => {
         const dateObj = new Date(h.fecha_registro);
-        const timePart = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        const timePart = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
         const year = dateObj.getFullYear();
         const month = String(dateObj.getMonth() + 1).padStart(2, '0');
         const day = String(dateObj.getDate()).padStart(2, '0');
         const datePart = `${day}/${month}/${year}`;
+        const fullLabel = `${timePart} ${datePart}`;
 
-        if (!isLarge) return days > 1 ? datePart : timePart;
+        if (!isLarge) return days > 1 ? datePart : fullLabel;
 
         // Si son 30 días, mostramos la fecha cada 5 días (ya que ahora hay 1 punto por día)
         if (days >= 15) {
           return index % 5 === 0 ? datePart : "";
         }
         // Para rangos > 1 día (3 o 7), mostramos solo la fecha
-        return days > 1 ? datePart : timePart;
+        return days > 1 ? datePart : fullLabel;
       });
 
       chart.data.datasets[0].data = history.map((h) => h.precio);
@@ -219,7 +220,7 @@ function updateIndividualView() {
                 <div class="stat-box"><span class="stat-label">Monto Efectivo</span><span class="stat-val">${parseFloat(item.monto_efectivo).toLocaleString("es-VE")} VES</span></div>
                 <div class="stat-box"><span class="stat-label">Var. Absoluta</span><span class="stat-val">${item.var_abs}</span></div>
                 <div class="stat-box"><span class="stat-label">Var. Relativa</span><span class="stat-val">${item.var_rel}%</span></div>
-                <div class="stat-box"><span class="stat-label">Último Registro</span><span class="stat-val">${item.hora}</span></div>
+                <div class="stat-box"><span class="stat-label">Último Registro</span><span class="stat-val">${new Date(item.fecha_registro).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}</span></div>
             `;
 }
 

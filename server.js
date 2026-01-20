@@ -92,7 +92,7 @@ async function fetchAndStore(force = false) {
         const hour = caracasTime.getHours();
 
         if (day === 0 || day === 6 || hour < 9 || hour >= 13) {
-            console.log(`💤 Mercado cerrado (Caracas: ${caracasTime.toLocaleTimeString()}). No se actualizarán datos.`);
+            console.log(`💤 Mercado cerrado (Caracas: ${caracasTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}). No se actualizarán datos.`);
             return;
         }
     }
@@ -105,17 +105,20 @@ async function fetchAndStore(force = false) {
         const url = 'https://www.bolsadecaracas.com/wp-admin/admin-ajax.php?action=resumenMercadoRentaVariable';
         const response = await axios.get(url, {
             headers: { 
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
                 'Referer': 'https://www.bolsadecaracas.com/',
                 'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'application/json, text/javascript, */*; q=0.01'
+                'Accept': 'application/json, text/javascript, */*; q=0.01',
+                'Origin': 'https://www.bolsadecaracas.com',
+                'Host': 'www.bolsadecaracas.com'
             }
         });
         scrapedData = response.data;
         console.log(`✅ Datos descargados: ${scrapedData.length} registros encontrados.`);
     } catch (error) {
-        console.error("❌ Error descargando datos de la web (Bolsa):", error.message);
-        return; // Detenemos aquí si no hay datos para guardar
+        console.warn(`⚠️ No se pudieron obtener nuevos datos de la Bolsa (${error.message}).`);
+        console.log("ℹ️ La aplicación continuará funcionando con los datos existentes en la base de datos.");
+        return; // Mantenemos los datos actuales en DB sin cambios
     }
 
     // 2. INTENTO DE GUARDADO (Base de Datos Postgres)
@@ -246,7 +249,7 @@ async function publishToInstagram() {
         .sort((a, b) => parseVE(b.volumen) - parseVE(a.volumen))
         .slice(0, 5);
 
-    const lastUpdate = new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas' });
+    const lastUpdate = new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas', hour12: true });
     
     let caption = `Top 5 Acciones con más volumen del día\n
     📊 Bolsa de Valores de Caracas\n\n`;
