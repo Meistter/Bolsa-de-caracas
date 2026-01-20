@@ -5,7 +5,7 @@ module.exports = {
     "BCO. PROVINCIAL": "Banco Provincial",
     "BOLSA V. CCAS.": "Bolsa de Valores de Caracas",
     "B.DE VENEZUELA": "Banco de Venezuela",
-    "C.CAPITAL \"B\"": "C. Capital (Clase B)",
+    "C.CAPITAL \"B\"": "Clabe Capital (Clase B)",
     "CR.CARABOBO": "Ceramicas Carabobo",
     "CORP.GPO.QUIM.": "Corporación Grupo Quimico",
     "CORIMON C.A.": "Corimon (Clase A)",
