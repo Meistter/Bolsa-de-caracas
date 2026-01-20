@@ -5,7 +5,6 @@ faviconLink.href = "logo.ico";
 document.head.appendChild(faviconLink);
 
 const API_BASE = "/api/bolsa";
-const POLL_INTERVAL = 60000; // Consultar cada 60 segundos para detectar cambios rápido
 let marketData = [];
 const charts = {};
 let mainChart = null;
@@ -287,6 +286,45 @@ function initChart(canvasId, storageId, isLarge) {
   else charts[storageId] = new Chart(ctx, config);
 }
 
+function scheduleNextUpdate() {
+  const now = new Date();
+  // Detectar hora de Caracas para saber si el mercado está abierto
+  const caracasTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Caracas" }));
+  const day = caracasTime.getDay();
+  const hour = caracasTime.getHours();
+
+  // Mercado abierto: Lunes (1) a Viernes (5), 9am - 1pm
+  const isWeekday = day >= 1 && day <= 5;
+  const isMarketOpen = isWeekday && (hour >= 9 && hour < 13);
+
+  let delay = 60000; // 1 minuto si está abierto
+
+  if (!isMarketOpen) {
+    // Calcular tiempo exacto hasta la próxima apertura (9:00 AM)
+    const target = new Date(caracasTime);
+    target.setHours(9, 0, 0, 0);
+
+    if (isWeekday && hour < 9) {
+      // Es hoy temprano: esperar a las 9am
+    } else {
+      // Es tarde o fin de semana: mover al siguiente día hábil
+      target.setDate(target.getDate() + 1);
+      while (target.getDay() === 0 || target.getDay() === 6) {
+        target.setDate(target.getDate() + 1);
+      }
+    }
+
+    // Calcular diferencia y añadir 5s de buffer para asegurar que el mercado ya abrió
+    delay = target.getTime() - caracasTime.getTime();
+    delay += 5000; 
+  }
+
+  setTimeout(async () => {
+    await fetchData();
+    scheduleNextUpdate();
+  }, delay);
+}
+
 // Iniciar la aplicación
 fetchData(); // Primera carga inmediata
-setInterval(fetchData, POLL_INTERVAL); // Actualización automática cada minuto
+scheduleNextUpdate(); // Iniciar ciclo inteligente

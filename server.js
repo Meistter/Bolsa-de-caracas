@@ -353,15 +353,30 @@ app.get('/api/instagram/post-summary', async (req, res) => {
     }
 });
 
+// Variables para caché en memoria (evita lecturas excesivas a la DB)
+let cachedMarketData = null;
+let lastCacheTime = 0;
+const CACHE_TTL = 60000; // 1 minuto de validez
+
 // 1. Obtener estado actual (últimos registros)
 app.get('/api/bolsa/actual', async (req, res) => {
     try {
+        // Si hay datos en caché y son recientes (menos de 1 min), usarlos
+        if (cachedMarketData && (Date.now() - lastCacheTime < CACHE_TTL)) {
+            return res.json(cachedMarketData);
+        }
+
         const result = await pool.query(`SELECT * FROM precios WHERE fecha_registro = (SELECT MAX(fecha_registro) FROM precios)`);
         const rows = result.rows.map(row => {
             const mapped = companyMap[row.nombre.trim()];
             if (mapped) row.nombre = mapped;
             return row;
         });
+
+        // Guardar en caché
+        cachedMarketData = rows;
+        lastCacheTime = Date.now();
+
         res.json(rows);
     } catch (err) {
         res.status(500).json({error: err.message});
