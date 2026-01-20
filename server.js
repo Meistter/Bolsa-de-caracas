@@ -104,7 +104,12 @@ async function fetchAndStore(force = false) {
         console.log("🔄 Conectando a la Bolsa de Valores...");
         const url = 'https://www.bolsadecaracas.com/wp-admin/admin-ajax.php?action=resumenMercadoRentaVariable';
         const response = await axios.get(url, {
-            headers: { 'User-Agent': 'Mozilla/5.0' }
+            headers: { 
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://www.bolsadecaracas.com/',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json, text/javascript, */*; q=0.01'
+            }
         });
         scrapedData = response.data;
         console.log(`✅ Datos descargados: ${scrapedData.length} registros encontrados.`);
