@@ -343,7 +343,7 @@ async function publishToInstagram() {
 }
 
 // Endpoint para publicar un resumen en Instagram (Manual)
-app.post('/api/instagram/post-summary', async (req, res) => {
+app.get('/api/instagram/post-summary', async (req, res) => {
     try {
         await publishToInstagram();
         res.json({ success: true, message: `Top 5 publicado en Instagram exitosamente.` });
