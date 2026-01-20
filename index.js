@@ -186,8 +186,8 @@ function updateSidebar() {
     div.id = `side-${item.symbol}`;
     div.innerHTML = `<img src="${item.icon}" class="logo" style="width:24px; height:24px;"> 
                      <div style="display:flex; flex-direction:column; margin-left:10px; line-height:1.2;">
-                        <span style="font-size:0.8rem; font-weight:bold;">${item.nombre}</span>
-                        <span style="font-size:0.7rem; color:#94a3b8;">${item.symbol}</span>
+                        <span style="font-size:1rem; font-weight:bold;">${item.nombre}</span>
+                        <span style="font-size:1rem; color:#94a3b8;">${item.symbol}</span>
                      </div>`;
     div.onclick = () => selectCompany(item.symbol);
     sidebar.appendChild(div);
