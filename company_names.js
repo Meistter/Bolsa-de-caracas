@@ -31,6 +31,6 @@ module.exports = {
     "R.S.TERESA \"B\"": "Ron Santa Teresa (Clase B)",
     "SIVENSA, S.A.": "Sivensa,S.A.",
     "CANTV CLASE (D)": "Cantv (Clase D)",
-    "T. PALO GRANDE": "T. Palogrande",
+    "T. PALO GRANDE": "Telares de Palogrande",
     "VENEALTERNA \"B\"": "Venealterna (Clase B)"
 };
