@@ -217,7 +217,11 @@ async function publishToInstagram() {
 
     // 1. Obtener los datos más recientes del mercado
     const marketResponse = await pool.query(`SELECT * FROM precios WHERE fecha_registro = (SELECT MAX(fecha_registro) FROM precios) ORDER BY var_rel DESC`);
-    const marketData = marketResponse.rows;
+    const marketData = marketResponse.rows.map(row => {
+        const mapped = companyMap[row.nombre.trim()];
+        if (mapped) row.nombre = mapped;
+        return row;
+    });
 
     if (marketData.length === 0) {
         throw new Error("No hay datos de mercado para publicar.");
