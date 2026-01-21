@@ -13,6 +13,10 @@ let currentRange = 1;
 let globalRange = 1; // Rango por defecto para el dashboard general
 let lastUpdateTimestamp = null;
 
+function getSafeId(symbol) {
+  return symbol.replace(/[^a-zA-Z0-9]/g, '-');
+}
+
 function processNewData(newData) {
     // Datos nuevos detectados, actualizamos todo.
     marketData = newData;
@@ -121,7 +125,7 @@ async function loadHistory(symbol, days, isLarge) {
       const endPrice = parseFloat(history[history.length - 1].precio);
       diff = endPrice - startPrice;
       percent = startPrice !== 0 ? (diff / startPrice) * 100 : 0;
-      isUp = diff >= 0;
+      isUp = endPrice >= startPrice;
     }
 
     // Actualizar texto de variación en la UI con el cálculo propio
@@ -131,7 +135,8 @@ async function loadHistory(symbol, days, isLarge) {
     const percentStr = percent.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const varText = `${arrow} ${diffStr} (${percentStr}%)`;
 
-    const varEl = isLarge ? document.getElementById("single-var") : document.getElementById(`var-${symbol}`);
+    const safeSymbol = getSafeId(symbol);
+    const varEl = isLarge ? document.getElementById("single-var") : document.getElementById(`var-${safeSymbol}`);
     if (varEl) {
       varEl.innerText = varText;
       varEl.className = `variation ${colorClass}`;
@@ -189,11 +194,12 @@ function switchView(view) {
 function updateGeneralView() {
   const container = document.getElementById("dashboard");
   marketData.forEach((item) => {
+    const safeSymbol = getSafeId(item.symbol);
     const id = item.symbol;
-    if (!document.getElementById(`container-${id}`)) {
+    if (!document.getElementById(`container-${safeSymbol}`)) {
       const card = document.createElement("div");
       card.className = "card";
-      card.id = `container-${id}`;
+      card.id = `container-${safeSymbol}`;
       card.innerHTML = `
                         <div class="company-header">
                             <img src="${item.icon}" class="logo" onerror="this.src='https://via.placeholder.com/32'">
@@ -202,14 +208,14 @@ function updateGeneralView() {
                                 <div style="font-size:1rem; color:#94a3b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:240px;">${item.nombre}</div>
                             </div>
                         </div>
-                        <div class="price" id="price-${id}" style="font-size:1.4rem">0</div>
-                        <div id="var-${id}" style="font-size:0.8rem; margin-bottom:10px;">0</div>
-                        <div class="card-chart-wrapper"><canvas id="chart-${id}"></canvas></div>
+                        <div class="price" id="price-${safeSymbol}" style="font-size:1.4rem">0</div>
+                        <div id="var-${safeSymbol}" style="font-size:0.8rem; margin-bottom:10px;">0</div>
+                        <div class="card-chart-wrapper"><canvas id="chart-${safeSymbol}"></canvas></div>
                     `;
       container.appendChild(card);
-      initChart(`chart-${id}`, id, false);
+      initChart(`chart-${safeSymbol}`, id, false);
     }
-    updateUIElements(item, `price-${id}`, `var-${id}`);
+    updateUIElements(item, `price-${safeSymbol}`, `var-${safeSymbol}`);
   });
 }
 
@@ -219,7 +225,7 @@ function updateSidebar() {
   marketData.forEach((item) => {
     const div = document.createElement("div");
     div.className = "sidebar-item";
-    div.id = `side-${item.symbol}`;
+    div.id = `side-${getSafeId(item.symbol)}`;
     div.innerHTML = `<img src="${item.icon}" class="logo" style="width:24px; height:24px;"> 
                      <div style="display:flex; flex-direction:column; margin-left:10px; line-height:1.2;">
                         <span style="font-size:1rem; font-weight:bold;">${item.nombre}</span>
@@ -235,8 +241,9 @@ async function selectCompany(symbol) {
   document
     .querySelectorAll(".sidebar-item")
     .forEach((el) => el.classList.remove("active"));
-  if (document.getElementById(`side-${symbol}`))
-    document.getElementById(`side-${symbol}`).classList.add("active");
+  const safeSymbol = getSafeId(symbol);
+  if (document.getElementById(`side-${safeSymbol}`))
+    document.getElementById(`side-${safeSymbol}`).classList.add("active");
   if (mainChart) mainChart.destroy();
   initChart("main-large-chart", symbol, true);
   updateIndividualView();
@@ -262,7 +269,7 @@ function updateIndividualView() {
 
 function updateUIElements(item, priceId, varId) {
   const price = parseFloat(item.precio);
-  const varAbs = parseFloat(item.var_abs);
+  const varAbs = parseFloat(String(item.var_abs).replace(',', '.'));
   const isUp = varAbs >= 0;
   const colorClass = isUp ? "up" : "down";
   const pEl = document.getElementById(priceId);
