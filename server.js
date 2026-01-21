@@ -1,5 +1,7 @@
 require('dotenv').config();
 const express = require('express');
+const http = require('http'); // Importar http
+const { WebSocketServer } = require('ws'); // Importar WebSocket
 const axios = require('axios');
 const cors = require('cors');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
@@ -23,6 +25,26 @@ const pool = new Pool({
         rejectUnauthorized: false // Necesario para conexiones seguras a Supabase/Render
     }
 });
+
+// --- CONFIGURACIÓN DEL SERVIDOR HTTP Y WEBSOCKETS ---
+const server = http.createServer(app); // Crear servidor HTTP desde Express
+const wss = new WebSocketServer({ server }); // Adjuntar WebSocket server al servidor HTTP
+
+wss.on('connection', ws => {
+    console.log('🔌 Nuevo cliente conectado vía WebSocket.');
+    ws.on('close', () => {
+        console.log('🔌 Cliente desconectado.');
+    });
+});
+
+function broadcast(data) {
+    const jsonData = JSON.stringify(data);
+    wss.clients.forEach(client => {
+        if (client.readyState === client.OPEN) {
+            client.send(jsonData);
+        }
+    });
+}
 
 // --- INTEGRACIÓN CON INSTAGRAM ---
 const ig = new IgApiClient();
@@ -91,7 +113,7 @@ async function fetchAndStore(force = false) {
         const day = caracasTime.getDay(); // 0 = Domingo, 6 = Sábado
         const hour = caracasTime.getHours();
 
-        if (day === 0 || day === 6 || hour < 9 || hour >= 13) {
+        if (day === 0 || day === 6 || hour < 9 || (hour > 13 || (hour === 13 && caracasTime.getMinutes() >= 10))) {
             console.log(`💤 Mercado cerrado (Caracas: ${caracasTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}). No se actualizarán datos.`);
             return;
         }
@@ -150,6 +172,12 @@ async function fetchAndStore(force = false) {
         
         await client.query('COMMIT'); // Confirmar cambios
         console.log("✅ Datos guardados exitosamente en Supabase.");
+
+        // Después de guardar, notificar a los clientes vía WebSocket
+        const latestData = await getLatestMarketData();
+        if (latestData) {
+            broadcast(latestData);
+        }
     } catch (error) {
         if (client) await client.query('ROLLBACK');
         console.error("❌ Error guardando en base de datos:", error.message);
@@ -365,30 +393,22 @@ app.get('/api/instagram/post-summary', async (req, res) => {
     }
 });
 
-// Variables para caché en memoria (evita lecturas excesivas a la DB)
-let cachedMarketData = null;
-let lastCacheTime = 0;
-const CACHE_TTL = 60000; // 1 minuto de validez
+// Función para obtener los últimos datos del mercado (reutilizable)
+async function getLatestMarketData() {
+    const result = await pool.query(`SELECT * FROM precios WHERE fecha_registro = (SELECT MAX(fecha_registro) FROM precios)`);
+    const rows = result.rows.map(row => {
+        const mapped = companyMap[row.nombre.trim()];
+        if (mapped) row.nombre = mapped;
+        return row;
+    });
+    return rows;
+}
 
 // 1. Obtener estado actual (últimos registros)
 app.get('/api/bolsa/actual', async (req, res) => {
     try {
-        // Si hay datos en caché y son recientes (menos de 1 min), usarlos
-        if (cachedMarketData && (Date.now() - lastCacheTime < CACHE_TTL)) {
-            return res.json(cachedMarketData);
-        }
-
-        const result = await pool.query(`SELECT * FROM precios WHERE fecha_registro = (SELECT MAX(fecha_registro) FROM precios)`);
-        const rows = result.rows.map(row => {
-            const mapped = companyMap[row.nombre.trim()];
-            if (mapped) row.nombre = mapped;
-            return row;
-        });
-
-        // Guardar en caché
-        cachedMarketData = rows;
-        lastCacheTime = Date.now();
-
+        // Esta ruta ahora solo se usa para la carga inicial de la página.
+        const rows = await getLatestMarketData();
         res.json(rows);
     } catch (err) {
         res.status(500).json({error: err.message});
@@ -427,4 +447,4 @@ app.get('/api/bolsa/historial/:symbol/:days', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));
+server.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));

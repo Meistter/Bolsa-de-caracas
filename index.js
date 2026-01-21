@@ -10,8 +10,30 @@ const charts = {};
 let mainChart = null;
 let selectedSymbol = null;
 let currentRange = 1;
-let globalRange = 7; // Rango por defecto para el dashboard general
+let globalRange = 1; // Rango por defecto para el dashboard general
 let lastUpdateTimestamp = null;
+
+function processNewData(newData) {
+    // Datos nuevos detectados, actualizamos todo.
+    marketData = newData;
+    const newTimestamp = newData[0].fecha_registro;
+    lastUpdateTimestamp = newTimestamp;
+
+    const lastUpdate = new Date(newTimestamp);
+    document.getElementById("status-text").innerText = `Última Sincronización: ${lastUpdate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`;
+
+    updateGeneralView();
+    updateSidebar();
+    createGlobalRangeSelector();
+
+    // Las miniaturas usan el rango global seleccionado
+    marketData.forEach((item) => loadHistory(item.symbol, globalRange, false));
+
+    if (selectedSymbol) {
+      updateIndividualView();
+      loadHistory(selectedSymbol, currentRange, true);
+    }
+}
 
 async function fetchData() {
   try {
@@ -35,24 +57,7 @@ async function fetchData() {
       return;
     }
 
-    // Datos nuevos detectados, actualizamos todo.
-    marketData = newData;
-    lastUpdateTimestamp = newTimestamp;
-
-    const lastUpdate = new Date(newTimestamp);
-    document.getElementById("status-text").innerText = `Última Sincronización: ${lastUpdate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`;
-
-    updateGeneralView();
-    updateSidebar();
-    createGlobalRangeSelector();
-
-    // Las miniaturas usan el rango global seleccionado
-    marketData.forEach((item) => loadHistory(item.symbol, globalRange, false));
-
-    if (selectedSymbol) {
-      updateIndividualView();
-      loadHistory(selectedSymbol, currentRange, true);
-    }
+    processNewData(newData);
   } catch (error) {
     document.getElementById("status-text").innerText = `Servidor Desconectado: ${error.message}`;
     console.error("Error en fetchData:", error);
@@ -125,7 +130,7 @@ async function loadHistory(symbol, days, isLarge) {
           return index % 5 === 0 ? datePart : "";
         }
         // Para rangos > 1 día (3 o 7), mostramos solo la fecha
-        return days > 1 ? datePart : fullLabel;
+        return days > 1 ? datePart : [timePart, datePart];
       });
 
       chart.data.datasets[0].data = history.map((h) => h.precio);
@@ -294,45 +299,29 @@ function initChart(canvasId, storageId, isLarge) {
   else charts[storageId] = new Chart(ctx, config);
 }
 
-function scheduleNextUpdate() {
-  const now = new Date();
-  // Detectar hora de Caracas para saber si el mercado está abierto
-  const caracasTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Caracas" }));
-  const day = caracasTime.getDay();
-  const hour = caracasTime.getHours();
+function connectWebSocket() {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}`;
+    const ws = new WebSocket(wsUrl);
 
-  // Mercado abierto: Lunes (1) a Viernes (5), 9am - 1pm
-  const isWeekday = day >= 1 && day <= 5;
-  const isMarketOpen = isWeekday && (hour >= 9 && hour < 13);
+    ws.onopen = () => {
+        console.log('WebSocket conectado.');
+    };
 
-  let delay = 60000; // 1 minuto si está abierto
+    ws.onmessage = (event) => {
+        const newData = JSON.parse(event.data);
+        if (newData.length > 0 && newData[0].fecha_registro !== lastUpdateTimestamp) {
+            console.log('Nuevos datos recibidos vía WebSocket.');
+            processNewData(newData);
+        }
+    };
 
-  if (!isMarketOpen) {
-    // Calcular tiempo exacto hasta la próxima apertura (9:00 AM)
-    const target = new Date(caracasTime);
-    target.setHours(9, 0, 0, 0);
-
-    if (isWeekday && hour < 9) {
-      // Es hoy temprano: esperar a las 9am
-    } else {
-      // Es tarde o fin de semana: mover al siguiente día hábil
-      target.setDate(target.getDate() + 1);
-      while (target.getDay() === 0 || target.getDay() === 6) {
-        target.setDate(target.getDate() + 1);
-      }
-    }
-
-    // Calcular diferencia y añadir 5s de buffer para asegurar que el mercado ya abrió
-    delay = target.getTime() - caracasTime.getTime();
-    delay += 5000; 
-  }
-
-  setTimeout(async () => {
-    await fetchData();
-    scheduleNextUpdate();
-  }, delay);
+    ws.onclose = () => {
+        console.log('WebSocket desconectado. Intentando reconectar en 5 segundos...');
+        setTimeout(connectWebSocket, 5000);
+    };
 }
 
 // Iniciar la aplicación
 fetchData(); // Primera carga inmediata
-scheduleNextUpdate(); // Iniciar ciclo inteligente
+connectWebSocket(); // Iniciar conexión WebSocket
