@@ -111,6 +111,32 @@ async function loadHistory(symbol, days, isLarge) {
     const response = await fetch(`${API_BASE}/historial/${symbol}/${days}`);
     const history = await response.json();
 
+    // Calcular variación y color basado en el historial cargado (Calculado por nosotros)
+    let isUp = true;
+    let diff = 0;
+    let percent = 0;
+
+    if (history.length > 0) {
+      const startPrice = parseFloat(history[0].precio);
+      const endPrice = parseFloat(history[history.length - 1].precio);
+      diff = endPrice - startPrice;
+      percent = startPrice !== 0 ? (diff / startPrice) * 100 : 0;
+      isUp = diff >= 0;
+    }
+
+    // Actualizar texto de variación en la UI con el cálculo propio
+    const arrow = isUp ? "▲" : "▼";
+    const colorClass = isUp ? "up" : "down";
+    const diffStr = diff.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const percentStr = percent.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const varText = `${arrow} ${diffStr} (${percentStr}%)`;
+
+    const varEl = isLarge ? document.getElementById("single-var") : document.getElementById(`var-${symbol}`);
+    if (varEl) {
+      varEl.innerText = varText;
+      varEl.className = `variation ${colorClass}`;
+    }
+
     const chart = isLarge ? mainChart : charts[symbol];
     if (chart && history.length > 0) {
       // Lógica de etiquetas: Si el rango es grande, mostramos menos etiquetas para que no se amontonen
@@ -135,8 +161,6 @@ async function loadHistory(symbol, days, isLarge) {
 
       chart.data.datasets[0].data = history.map((h) => h.precio);
 
-      const last = history[history.length - 1];
-      const isUp = parseFloat(last.var_abs) >= 0;
       chart.data.datasets[0].borderColor = isUp ? "#22c55e" : "#ef4444";
       chart.data.datasets[0].backgroundColor = isUp
         ? "rgba(34, 197, 148, 0.1)"
