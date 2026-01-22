@@ -10,34 +10,8 @@ const charts = {};
 let mainChart = null;
 let selectedSymbol = null;
 let currentRange = 1;
-let globalRange = 1; // Rango por defecto para el dashboard general
+let globalRange = 7; // Rango por defecto para el dashboard general
 let lastUpdateTimestamp = null;
-
-function getSafeId(symbol) {
-  return symbol.replace(/[^a-zA-Z0-9]/g, '-');
-}
-
-function processNewData(newData) {
-    // Datos nuevos detectados, actualizamos todo.
-    marketData = newData;
-    const newTimestamp = newData[0].fecha_registro;
-    lastUpdateTimestamp = newTimestamp;
-
-    const lastUpdate = new Date(newTimestamp);
-    document.getElementById("status-text").innerText = `Última Sincronización: ${lastUpdate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`;
-
-    updateGeneralView();
-    updateSidebar();
-    createGlobalRangeSelector();
-
-    // Las miniaturas usan el rango global seleccionado
-    marketData.forEach((item) => loadHistory(item.symbol, globalRange, false));
-
-    if (selectedSymbol) {
-      updateIndividualView();
-      loadHistory(selectedSymbol, currentRange, true);
-    }
-}
 
 async function fetchData() {
   try {
@@ -54,14 +28,33 @@ async function fetchData() {
       return; // No hay datos, no hacemos nada.
     }
 
-    const newTimestamp = newData[0].fecha_registro;
+    // Encontrar la fecha más reciente entre todos los registros (ya que ahora traemos el último estado de cada acción)
+    const newTimestamp = newData.reduce((max, item) => 
+      item.fecha_registro > max ? item.fecha_registro : max, newData[0].fecha_registro);
 
     // Si la fecha del último registro es la misma, no repintamos nada.
     if (newTimestamp === lastUpdateTimestamp) {
       return;
     }
 
-    processNewData(newData);
+    // Datos nuevos detectados, actualizamos todo.
+    marketData = newData;
+    lastUpdateTimestamp = newTimestamp;
+
+    const lastUpdate = new Date(newTimestamp);
+    document.getElementById("status-text").innerText = `Última Sincronización: ${lastUpdate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`;
+
+    updateGeneralView();
+    updateSidebar();
+    createGlobalRangeSelector();
+
+    // Las miniaturas usan el rango global seleccionado
+    marketData.forEach((item) => loadHistory(item.symbol, globalRange, false));
+
+    if (selectedSymbol) {
+      updateIndividualView();
+      loadHistory(selectedSymbol, currentRange, true);
+    }
   } catch (error) {
     document.getElementById("status-text").innerText = `Servidor Desconectado: ${error.message}`;
     console.error("Error en fetchData:", error);
@@ -115,39 +108,6 @@ async function loadHistory(symbol, days, isLarge) {
     const response = await fetch(`${API_BASE}/historial/${symbol}/${days}`);
     const history = await response.json();
 
-    // Calcular variación y color basado en el historial cargado (Calculado por nosotros)
-    let isUp = true;
-    let diff = 0;
-    let percent = 0;
-
-    if (history.length > 0) {
-      const startPrice = parseFloat(history[0].precio);
-      const endPrice = parseFloat(history[history.length - 1].precio);
-      diff = endPrice - startPrice;
-      percent = startPrice !== 0 ? (diff / startPrice) * 100 : 0;
-      isUp = endPrice >= startPrice;
-    }
-
-    // Actualizar texto de variación en la UI con el cálculo propio
-    const arrow = isUp ? "▲" : "▼";
-    const colorClass = isUp ? "up" : "down";
-    const diffStr = diff.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const percentStr = percent.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const varText = `${arrow} ${diffStr} (${percentStr}%)`;
-
-    const safeSymbol = getSafeId(symbol);
-    const varEl = isLarge ? document.getElementById("single-var") : document.getElementById(`var-${safeSymbol}`);
-    if (varEl) {
-      varEl.innerText = varText;
-      varEl.className = `variation ${colorClass}`;
-    }
-
-    // Actualizar también el color del precio para que coincida con la variación calculada
-    const priceEl = isLarge ? document.getElementById("single-price") : document.getElementById(`price-${safeSymbol}`);
-    if (priceEl) {
-      priceEl.className = `price ${colorClass}`;
-    }
-
     const chart = isLarge ? mainChart : charts[symbol];
     if (chart && history.length > 0) {
       // Lógica de etiquetas: Si el rango es grande, mostramos menos etiquetas para que no se amontonen
@@ -167,11 +127,13 @@ async function loadHistory(symbol, days, isLarge) {
           return index % 5 === 0 ? datePart : "";
         }
         // Para rangos > 1 día (3 o 7), mostramos solo la fecha
-        return days > 1 ? datePart : [timePart, datePart];
+        return days > 1 ? datePart : fullLabel;
       });
 
       chart.data.datasets[0].data = history.map((h) => h.precio);
 
+      const last = history[history.length - 1];
+      const isUp = parseFloat(last.var_abs) >= 0;
       chart.data.datasets[0].borderColor = isUp ? "#22c55e" : "#ef4444";
       chart.data.datasets[0].backgroundColor = isUp
         ? "rgba(34, 197, 148, 0.1)"
@@ -200,12 +162,11 @@ function switchView(view) {
 function updateGeneralView() {
   const container = document.getElementById("dashboard");
   marketData.forEach((item) => {
-    const safeSymbol = getSafeId(item.symbol);
     const id = item.symbol;
-    if (!document.getElementById(`container-${safeSymbol}`)) {
+    if (!document.getElementById(`container-${id}`)) {
       const card = document.createElement("div");
       card.className = "card";
-      card.id = `container-${safeSymbol}`;
+      card.id = `container-${id}`;
       card.innerHTML = `
                         <div class="company-header">
                             <img src="${item.icon}" class="logo" onerror="this.src='https://via.placeholder.com/32'">
@@ -214,14 +175,14 @@ function updateGeneralView() {
                                 <div style="font-size:1rem; color:#94a3b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:240px;">${item.nombre}</div>
                             </div>
                         </div>
-                        <div class="price" id="price-${safeSymbol}" style="font-size:1.4rem">0</div>
-                        <div id="var-${safeSymbol}" style="font-size:0.8rem; margin-bottom:10px;">0</div>
-                        <div class="card-chart-wrapper"><canvas id="chart-${safeSymbol}"></canvas></div>
+                        <div class="price" id="price-${id}" style="font-size:1.4rem">0</div>
+                        <div id="var-${id}" style="font-size:0.8rem; margin-bottom:10px;">0</div>
+                        <div class="card-chart-wrapper"><canvas id="chart-${id}"></canvas></div>
                     `;
       container.appendChild(card);
-      initChart(`chart-${safeSymbol}`, id, false);
+      initChart(`chart-${id}`, id, false);
     }
-    updateUIElements(item, `price-${safeSymbol}`, `var-${safeSymbol}`);
+    updateUIElements(item, `price-${id}`, `var-${id}`);
   });
 }
 
@@ -231,7 +192,7 @@ function updateSidebar() {
   marketData.forEach((item) => {
     const div = document.createElement("div");
     div.className = "sidebar-item";
-    div.id = `side-${getSafeId(item.symbol)}`;
+    div.id = `side-${item.symbol}`;
     div.innerHTML = `<img src="${item.icon}" class="logo" style="width:24px; height:24px;"> 
                      <div style="display:flex; flex-direction:column; margin-left:10px; line-height:1.2;">
                         <span style="font-size:1rem; font-weight:bold;">${item.nombre}</span>
@@ -247,9 +208,8 @@ async function selectCompany(symbol) {
   document
     .querySelectorAll(".sidebar-item")
     .forEach((el) => el.classList.remove("active"));
-  const safeSymbol = getSafeId(symbol);
-  if (document.getElementById(`side-${safeSymbol}`))
-    document.getElementById(`side-${safeSymbol}`).classList.add("active");
+  if (document.getElementById(`side-${symbol}`))
+    document.getElementById(`side-${symbol}`).classList.add("active");
   if (mainChart) mainChart.destroy();
   initChart("main-large-chart", symbol, true);
   updateIndividualView();
@@ -275,8 +235,7 @@ function updateIndividualView() {
 
 function updateUIElements(item, priceId, varId) {
   const price = parseFloat(item.precio);
-  let varAbs = parseFloat(String(item.var_abs).replace(',', '.'));
-  if (isNaN(varAbs)) varAbs = 0;
+  const varAbs = parseFloat(item.var_abs);
   const isUp = varAbs >= 0;
   const colorClass = isUp ? "up" : "down";
   const pEl = document.getElementById(priceId);
@@ -337,29 +296,45 @@ function initChart(canvasId, storageId, isLarge) {
   else charts[storageId] = new Chart(ctx, config);
 }
 
-function connectWebSocket() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}`;
-    const ws = new WebSocket(wsUrl);
+function scheduleNextUpdate() {
+  const now = new Date();
+  // Detectar hora de Caracas para saber si el mercado está abierto
+  const caracasTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Caracas" }));
+  const day = caracasTime.getDay();
+  const hour = caracasTime.getHours();
 
-    ws.onopen = () => {
-        console.log('WebSocket conectado.');
-    };
+  // Mercado abierto: Lunes (1) a Viernes (5), 9am - 1pm
+  const isWeekday = day >= 1 && day <= 5;
+  const isMarketOpen = isWeekday && (hour >= 9 && hour < 13);
 
-    ws.onmessage = (event) => {
-        const newData = JSON.parse(event.data);
-        if (newData.length > 0 && newData[0].fecha_registro !== lastUpdateTimestamp) {
-            console.log('Nuevos datos recibidos vía WebSocket.');
-            processNewData(newData);
-        }
-    };
+  let delay = 60000; // 1 minuto si está abierto
 
-    ws.onclose = () => {
-        console.log('WebSocket desconectado. Intentando reconectar en 5 segundos...');
-        setTimeout(connectWebSocket, 5000);
-    };
+  if (!isMarketOpen) {
+    // Calcular tiempo exacto hasta la próxima apertura (9:00 AM)
+    const target = new Date(caracasTime);
+    target.setHours(9, 0, 0, 0);
+
+    if (isWeekday && hour < 9) {
+      // Es hoy temprano: esperar a las 9am
+    } else {
+      // Es tarde o fin de semana: mover al siguiente día hábil
+      target.setDate(target.getDate() + 1);
+      while (target.getDay() === 0 || target.getDay() === 6) {
+        target.setDate(target.getDate() + 1);
+      }
+    }
+
+    // Calcular diferencia y añadir 5s de buffer para asegurar que el mercado ya abrió
+    delay = target.getTime() - caracasTime.getTime();
+    delay += 5000; 
+  }
+
+  setTimeout(async () => {
+    await fetchData();
+    scheduleNextUpdate();
+  }, delay);
 }
 
 // Iniciar la aplicación
 fetchData(); // Primera carga inmediata
-connectWebSocket(); // Iniciar conexión WebSocket
+scheduleNextUpdate(); // Iniciar ciclo inteligente
