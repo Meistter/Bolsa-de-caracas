@@ -142,6 +142,12 @@ async function loadHistory(symbol, days, isLarge) {
       varEl.className = `variation ${colorClass}`;
     }
 
+    // Actualizar también el color del precio para que coincida con la variación calculada
+    const priceEl = isLarge ? document.getElementById("single-price") : document.getElementById(`price-${safeSymbol}`);
+    if (priceEl) {
+      priceEl.className = `price ${colorClass}`;
+    }
+
     const chart = isLarge ? mainChart : charts[symbol];
     if (chart && history.length > 0) {
       // Lógica de etiquetas: Si el rango es grande, mostramos menos etiquetas para que no se amontonen
@@ -269,7 +275,8 @@ function updateIndividualView() {
 
 function updateUIElements(item, priceId, varId) {
   const price = parseFloat(item.precio);
-  const varAbs = parseFloat(String(item.var_abs).replace(',', '.'));
+  let varAbs = parseFloat(String(item.var_abs).replace(',', '.'));
+  if (isNaN(varAbs)) varAbs = 0;
   const isUp = varAbs >= 0;
   const colorClass = isUp ? "up" : "down";
   const pEl = document.getElementById(priceId);
