@@ -391,7 +391,7 @@ app.get('/api/instagram/post-summary', async (req, res) => {
 
 // Función para obtener los últimos datos del mercado (reutilizable)
 async function getLatestMarketData() {
-    const result = await pool.query(`SELECT DISTINCT ON (symbol) * FROM precios ORDER BY symbol, fecha_registro DESC`);
+    const result = await pool.query(`SELECT * FROM precios WHERE fecha_registro = (SELECT MAX(fecha_registro) FROM precios)`);
     const rows = result.rows.map(row => {
         const mapped = companyMap[row.nombre.trim()];
         if (mapped) row.nombre = mapped;
@@ -417,26 +417,11 @@ app.get('/api/bolsa/historial/:symbol/:days', async (req, res) => {
     const daysLimit = parseInt(days) || 1;
     
     try {
-        let result;
-        if (daysLimit === 1) {
-            // Rango 1 día: Mostrar todos los puntos (Intradía)
-            result = await pool.query(
-                `SELECT precio, hora, fecha_registro FROM precios WHERE symbol = $1 AND fecha_registro >= NOW() - INTERVAL '1 day' ORDER BY fecha_registro ASC`,
-                [symbol]
-            );
-        } else {
-            // Rango > 1 día: Mostrar solo 1 punto por día (El último registro/cierre de cada día)
-            result = await pool.query(
-                `SELECT * FROM (
-                    SELECT DISTINCT ON (DATE(fecha_registro))
-                        precio, hora, fecha_registro
-                    FROM precios
-                    WHERE symbol = $1 AND fecha_registro >= NOW() - ($2 || ' days')::INTERVAL
-                    ORDER BY DATE(fecha_registro) ASC, fecha_registro DESC
-                ) sub ORDER BY fecha_registro ASC`,
-                [symbol, daysLimit]
-            );
-        }
+        // Obtener TODOS los registros dentro del rango (sin filtrar 1 por día)
+        const result = await pool.query(
+            `SELECT precio, hora, fecha_registro FROM precios WHERE symbol = $1 AND fecha_registro >= NOW() - ($2 || ' days')::INTERVAL ORDER BY fecha_registro ASC`,
+            [symbol, daysLimit]
+        );
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({error: err.message});

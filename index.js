@@ -153,24 +153,15 @@ async function loadHistory(symbol, days, isLarge) {
 
     const chart = isLarge ? mainChart : charts[symbol];
     if (chart && history.length > 0) {
-      // Lógica de etiquetas: Si el rango es grande, mostramos menos etiquetas para que no se amontonen
-      chart.data.labels = history.map((h, index) => {
+      // Generar etiquetas: Mostramos fecha y hora, Chart.js ocultará las que no quepan
+      chart.data.labels = history.map((h) => {
         const dateObj = new Date(h.fecha_registro);
         const timePart = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-        const year = dateObj.getFullYear();
         const month = String(dateObj.getMonth() + 1).padStart(2, '0');
         const day = String(dateObj.getDate()).padStart(2, '0');
-        const datePart = `${day}/${month}/${year}`;
-        const fullLabel = `${timePart} ${datePart}`;
-
-        if (!isLarge) return days > 1 ? datePart : fullLabel;
-
-        // Si son 30 días, mostramos la fecha cada 5 días (ya que ahora hay 1 punto por día)
-        if (days >= 15) {
-          return index % 5 === 0 ? datePart : "";
-        }
-        // Para rangos > 1 día (3 o 7), mostramos solo la fecha
-        return days > 1 ? datePart : [timePart, datePart];
+        const datePart = `${day}/${month}`;
+        
+        return days > 1 ? `${datePart} ${timePart}` : timePart;
       });
 
       chart.data.datasets[0].data = history.map((h) => parseFloat(String(h.precio).replace(',', '.')));
@@ -322,7 +313,8 @@ function initChart(canvasId, storageId, isLarge) {
             color: "#64748b",
             font: { size: 9 },
             maxRotation: 0,
-            autoSkip: false,
+            autoSkip: true, // Permitir saltar etiquetas para evitar superposición
+            maxTicksLimit: isLarge ? 10 : 5, // Limitar cantidad máxima de fechas en el eje X
           },
         },
         y: {
