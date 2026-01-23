@@ -391,7 +391,11 @@ app.get('/api/instagram/post-summary', async (req, res) => {
 
 // Función para obtener los últimos datos del mercado (reutilizable)
 async function getLatestMarketData() {
-    const result = await pool.query(`SELECT * FROM precios WHERE fecha_registro = (SELECT MAX(fecha_registro) FROM precios)`);
+    const result = await pool.query(`SELECT * FROM (
+        SELECT DISTINCT ON (symbol) * 
+        FROM precios 
+        ORDER BY symbol, fecha_registro DESC
+    ) sub ORDER BY fecha_registro DESC`);
     const rows = result.rows.map(row => {
         const mapped = companyMap[row.nombre.trim()];
         if (mapped) row.nombre = mapped;
