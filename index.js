@@ -9,8 +9,8 @@ let marketData = [];
 const charts = {};
 let mainChart = null;
 let selectedSymbol = null;
-let currentRange = 1;
-let globalRange = 1; // Rango por defecto para el dashboard general
+let currentRange = 3;
+let globalRange = 7; // Rango por defecto para el dashboard general
 let lastUpdateTimestamp = null;
 
 function getSafeId(symbol) {
