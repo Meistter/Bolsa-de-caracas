@@ -332,6 +332,36 @@ function initChart(canvasId, storageId, isLarge) {
   else charts[storageId] = new Chart(ctx, config);
 }
 
+function updateMarketStatus() {
+  const now = new Date();
+  const caracasTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Caracas" }));
+  const day = caracasTime.getDay();
+  const hour = caracasTime.getHours();
+
+  // Lunes (1) a Viernes (5), 9am a 1pm (13:00)
+  const isOpen = (day >= 1 && day <= 5) && (hour >= 9 && hour < 13);
+
+  const statusText = isOpen ? "Abierto" : "Cerrado";
+  const color = isOpen ? "#22c55e" : "#ef4444";
+
+  let statusEl = document.getElementById("market-status");
+  if (!statusEl) {
+    // Intentar insertar antes de status-text si existe, para ubicarlo en el header
+    const statusTextEl = document.getElementById("status-text");
+    if (statusTextEl && statusTextEl.parentNode) {
+      statusEl = document.createElement("div");
+      statusEl.id = "market-status";
+      statusEl.style.fontWeight = "bold";
+      statusEl.style.marginBottom = "5px";
+      statusTextEl.parentNode.insertBefore(statusEl, statusTextEl);
+    }
+  }
+
+  if (statusEl) {
+    statusEl.innerHTML = `Estado del Mercado: <span style="color:${color}">${statusText}</span>`;
+  }
+}
+
 function connectWebSocket() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}`;
@@ -357,4 +387,6 @@ function connectWebSocket() {
 
 // Iniciar la aplicación
 fetchData(); // Primera carga inmediata
+updateMarketStatus(); // Verificar estado inicial
+setInterval(updateMarketStatus, 60000); // Actualizar estado cada minuto
 connectWebSocket(); // Iniciar conexión WebSocket
