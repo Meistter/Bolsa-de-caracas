@@ -286,90 +286,132 @@ async function publishToInstagram() {
     
     for (const [i, stock] of topVolumen.entries()) {
         const icon = parseFloat(stock.var_abs) >= 0 ? '🟢' : '🔴';
-        caption += `${i + 1}. ${stock.symbol}: ${parseFloat(stock.volumen).toLocaleString('es-VE')} Bs. ${{icon}}\n`;
+        caption += `${i + 1}. ${stock.symbol}: ${parseFloat(stock.volumen).toLocaleString('es-VE')} Bs.\n`;
     }
 
     caption += `\n#Bolsadecaracas #dinero #acciones #graficas #graficos #bolsa #valor #valores #caracas #envivo #MercadoDeValores #Venezuela #venezuela #venezolanos #Finanzas\n`;
     caption += `Información con fines educativos.`;
 
-    // 3. Generar imagen con Canvas (Diseño tipo "Canva")
-    console.log("🖼️  Generando imagen personalizada...");
+    // 3. Generar imagen con Canvas (Diseño Moderno)
+    console.log("🖼️  Generando imagen con diseño moderno...");
     const width = 1080;
     const height = 1080;
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
 
-    // -- FONDO --
-    ctx.fillStyle = '#0f172a'; // Color de fondo oscuro (igual a tu app)
+    // Helper para rectángulos redondeados
+    const roundRect = (ctx, x, y, width, height, radius) => {
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + width - radius, y);
+        ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+        ctx.lineTo(x + width, y + height - radius);
+        ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+        ctx.lineTo(x + radius, y + height);
+        ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+        ctx.lineTo(x, y + radius);
+        ctx.quadraticCurveTo(x, y, x + radius, y);
+        ctx.closePath();
+    };
+
+    // -- FONDO CON GRADIENTE --
+    const gradient = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, width / 1.5);
+    gradient.addColorStop(0, '#1e3a8a'); // Azul oscuro en el centro
+    gradient.addColorStop(1, '#0f172a'); // Azul/negro más oscuro en los bordes
+    ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
 
     // -- TÍTULO --
-    ctx.fillStyle = '#38bdf8'; // Azul claro
-    ctx.font = 'bold 60px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('Top 5 Acciones', width / 2, 140);
-    
-    ctx.fillStyle = '#94a3b8'; // Gris claro
-    ctx.font = '30px sans-serif';
-    ctx.fillText('Mas tranzadas del día', width / 2, 200);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 72px sans-serif';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 5;
+    ctx.fillText('Top 5 Acciones', width / 2, 150);
+    ctx.shadowColor = 'transparent'; // Resetear sombra
+
+    ctx.fillStyle = '#93c5fd'; // Azul claro para subtítulo
+    ctx.font = '35px sans-serif';
+    ctx.fillText('Volumen de Operaciones', width / 2, 210);
 
     // -- LISTA DE ACCIONES --
-    const startY = 320;
-    const rowHeight = 130;
+    const startY = 280;
+    const rowHeight = 135;
+    const cardWidth = 980;
+    const cardHeight = 110;
+    const cardX = (width - cardWidth) / 2;
 
     for (const [i, stock] of topVolumen.entries()) {
         const y = startY + (i * rowHeight);
-        const isUp = parseFloat(stock.var_abs) >= 0;
-        const color = isUp ? '#22c55e' : '#e70000'; // Verde o Rojo
+        const isUp = parseFloat(String(stock.var_abs).replace(',', '.')) >= 0;
+        const color = isUp ? '#22c55e' : '#ef4444'; // Verde o Rojo brillante
         const arrow = isUp ? '▲' : '▼';
 
-        // Fondo de la fila (tarjeta)
-        ctx.fillStyle = '#1e293b';
-        ctx.fillRect(50, y - 80, 980, 110);
+        // -- TARJETA CON EFECTO "GLASS" --
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.lineWidth = 1;
+        roundRect(ctx, cardX, y, cardWidth, cardHeight, 20);
+        ctx.fill();
+        ctx.stroke();
 
-        // Rank (1., 2., etc)
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 45px sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText(`${i + 1}.`, 70, y);
+        // -- CONTENIDO DE LA TARJETA --
+        const contentY = y + cardHeight / 2;
 
-        // Logo
+        // Logo (circular)
+        const logoX = cardX + 30;
+        const logoY = y + 25;
+        const logoSize = 60;
         try {
             if (stock.icon) {
                 const logo = await loadImage(stock.icon);
-                // Centrar logo verticalmente (60x60)
-                ctx.drawImage(logo, 120, y - 55, 60, 60);
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(logoX + logoSize / 2, logoY + logoSize / 2, logoSize / 2, 0, Math.PI * 2, true);
+                ctx.closePath();
+                ctx.clip();
+                ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
+                ctx.restore();
             }
         } catch (e) {
             console.log(`No se pudo cargar logo para ${stock.symbol}`);
         }
 
         // Símbolo y Nombre
-        const textStartX = 200;
-        ctx.fillText(stock.symbol, textStartX, y);
-        
-        const symbolWidth = ctx.measureText(stock.symbol).width;
-        ctx.fillStyle = '#94a3b8'; // Gris claro para el nombre
-        ctx.font = '30px sans-serif';
-        ctx.fillText(stock.nombre, textStartX + symbolWidth + 15, y);
-
-        // Precio (Derecha Arriba)
-         ctx.fillStyle = color;
+        const textStartX = logoX + logoSize + 30;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 40px sans-serif';
-        ctx.textAlign = 'right';
-        ctx.fillText(`${parseFloat(stock.precio).toLocaleString('es-VE')} Bs.`, 980, y - 20);
+        ctx.fillText(stock.symbol, textStartX, contentY + 10);
+        
+        ctx.fillStyle = '#94a3b8'; // Gris claro para el nombre
+        ctx.font = '24px sans-serif';
+        const symbolWidth = ctx.measureText(stock.symbol).width;
+        ctx.fillText(stock.nombre, textStartX + symbolWidth + 15, contentY + 8);
 
-        // Variación (Debajo del precio)
+        // Precio y Variación (con efecto de brillo)
+        ctx.textAlign = 'right';
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 15;
+
         ctx.fillStyle = color;
-        ctx.font = 'bold 25px sans-serif';
-        ctx.fillText(`${arrow} ${stock.var_rel}%`, 980, y + 15);
+        ctx.font = 'bold 42px sans-serif';
+        ctx.fillText(`${parseFloat(stock.precio).toLocaleString('es-VE')} Bs.`, cardX + cardWidth - 30, contentY - 5);
+
+        ctx.font = 'bold 28px sans-serif';
+        ctx.fillText(`${arrow} ${stock.var_rel}%`, cardX + cardWidth - 30, contentY + 35);
+        
+        ctx.shadowColor = 'transparent'; // Resetear sombra para el siguiente loop
     }
 
     // -- FOOTER --
-    ctx.fillStyle = '#64748b';
-    ctx.font = '25px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('www.bolsa-de-valores.onrender.com', width / 2, 1040);
+    ctx.fillStyle = '#64748b';
+    ctx.font = '22px sans-serif';
+    ctx.fillText('www.bolsa-de-valores.onrender.com', width / 2, height - 50);
+    ctx.font = '18px sans-serif';
+    ctx.fillText('Información con fines educativos.', width / 2, height - 25);
 
     const imageBuffer = canvas.toBuffer('image/jpeg');
 
