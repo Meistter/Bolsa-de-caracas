@@ -280,13 +280,13 @@ async function publishToInstagram() {
     const lastUpdate = new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas', hour12: true });
     
     let caption = `Top 5 Acciones con más operaciones del día\n
-    📊 Bolsa de Valores de Caracas\n\n`;
+    📊 Bolsa de Valores de Caracas\n`;
     caption += `🗓️ ${lastUpdate}\n\n
-    Volumen de transacciones:`;
+    Volumen de transacciones\n\n`;
     
     for (const [i, stock] of topVolumen.entries()) {
         const icon = parseFloat(stock.var_abs) >= 0 ? '🟢' : '🔴';
-        caption += `${i + 1}. ${stock.symbol}: ${parseFloat(stock.volumen).toLocaleString('es-VE')} VES)\n`;
+        caption += `${i + 1}. ${stock.symbol}: ${parseFloat(stock.volumen).toLocaleString('es-VE')} Bs. ${{icon}}\n`;
     }
 
     caption += `\n#Bolsadecaracas #dinero #acciones #graficas #graficos #bolsa #valor #valores #caracas #envivo #MercadoDeValores #Venezuela #venezuela #venezolanos #Finanzas\n`;
@@ -354,10 +354,10 @@ async function publishToInstagram() {
         ctx.fillText(stock.nombre, textStartX + symbolWidth + 15, y);
 
         // Precio (Derecha Arriba)
-        ctx.fillStyle = '#ffffff';
+         ctx.fillStyle = color;
         ctx.font = 'bold 40px sans-serif';
         ctx.textAlign = 'right';
-        ctx.fillText(`${parseFloat(stock.precio).toLocaleString('es-VE')} VES`, 980, y - 20);
+        ctx.fillText(`${parseFloat(stock.precio).toLocaleString('es-VE')} Bs.`, 980, y - 20);
 
         // Variación (Debajo del precio)
         ctx.fillStyle = color;
