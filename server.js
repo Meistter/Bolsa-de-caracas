@@ -200,7 +200,13 @@ initDB().then(() => {
         console.log("🕐 Ejecutando publicación automática programada...");
         try {
             await publishToInstagram();
-            console.log("✅ Publicación automática completada.");
+            console.log("✅ Publicación automática de Top 5 completada.");
+
+            // Esperar un poco para no saturar la API de Instagram
+            await new Promise(resolve => setTimeout(resolve, 30000)); // 30 segundos
+
+            await publishAllStocksToInstagram();
+            console.log("✅ Publicación automática de resumen completo completada.");
         } catch (error) {
             console.error("❌ Error en publicación automática:", error.message);
         }
@@ -245,61 +251,12 @@ app.get('/api/fetch-data', async (req, res) => {
 //     }
 // });
 
-// Función reutilizable para publicar en Instagram
-async function publishToInstagram() {
-    if (!igLoggedIn) {
-        throw new Error("No se ha iniciado sesión en Instagram. Revisa las credenciales del servidor.");
-    }
-
-    // 1. Obtener los datos más recientes del mercado
-    const marketResponse = await pool.query(`SELECT * FROM precios WHERE fecha_registro = (SELECT MAX(fecha_registro) FROM precios) ORDER BY var_rel DESC`);
-    const marketData = marketResponse.rows.map(row => {
-        const mapped = companyMap[row.nombre.trim()];
-        if (mapped) row.nombre = mapped;
-        return row;
-    });
-
-    if (marketData.length === 0) {
-        throw new Error("No hay datos de mercado para publicar.");
-    }
-
-    // 2. Procesar datos: Ordenar por Volumen y tomar Top 5
-    // Función auxiliar para limpiar formato numérico VE (1.000,00 -> 1000.00)
-    const parseVE = (str) => {
-        if (!str) return 0;
-        // Eliminar puntos de miles y reemplazar coma decimal por punto
-        const clean = str.toString().replace(/\./g, '').replace(',', '.');
-        return parseFloat(clean) || 0;
-    };
-
-    // Ordenar de mayor a menor volumen y tomar los 5 primeros
-    const topVolumen = marketData
-        .sort((a, b) => parseVE(b.volumen) - parseVE(a.volumen))
-        .slice(0, 5);
-
-    const lastUpdate = new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas', hour12: true });
-    
-    let caption = `Top 5 Acciones con más operaciones del día\n
-    📊 Bolsa de Valores de Caracas\n`;
-    caption += `🗓️ ${lastUpdate}\n\n
-    Volumen de transacciones\n\n`;
-    
-    for (const [i, stock] of topVolumen.entries()) {
-        const icon = parseFloat(stock.var_abs) >= 0 ? '🟢' : '🔴';
-        caption += `${i + 1}. ${stock.symbol}: ${parseFloat(stock.volumen).toLocaleString('es-VE')} Bs.\n`;
-    }
-
-    caption += `\n#Bolsadecaracas #dinero #acciones #graficas #graficos #bolsa #valor #valores #caracas #envivo #MercadoDeValores #Venezuela #venezuela #venezolanos #Finanzas\n`;
-    caption += `Información con fines educativos.`;
-
-    // 3. Generar imagen con Canvas (Diseño Moderno)
-    console.log("🖼️  Generando imagen con diseño moderno...");
+async function generateStockImage(stocks, title, subtitle, pageInfo = null) {
     const width = 1080;
     const height = 1080;
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
 
-    // Helper para rectángulos redondeados
     const roundRect = (ctx, x, y, width, height, radius) => {
         ctx.beginPath();
         ctx.moveTo(x + radius, y);
@@ -314,41 +271,37 @@ async function publishToInstagram() {
         ctx.closePath();
     };
 
-    // -- FONDO CON GRADIENTE --
     const gradient = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, width / 1.5);
-    gradient.addColorStop(0, '#1e3a8a'); // Azul oscuro en el centro
-    gradient.addColorStop(1, '#0f172a'); // Azul/negro más oscuro en los bordes
+    gradient.addColorStop(0, '#1e3a8a');
+    gradient.addColorStop(1, '#0f172a');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
 
-    // -- TÍTULO --
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 72px sans-serif';
     ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
     ctx.shadowBlur = 10;
     ctx.shadowOffsetY = 5;
-    ctx.fillText('Top 5 Acciones', width / 2, 150);
-    ctx.shadowColor = 'transparent'; // Resetear sombra
+    ctx.fillText(title, width / 2, 150);
+    ctx.shadowColor = 'transparent';
 
-    ctx.fillStyle = '#93c5fd'; // Azul claro para subtítulo
+    ctx.fillStyle = '#93c5fd';
     ctx.font = '35px sans-serif';
-    ctx.fillText('Volumen de Operaciones', width / 2, 210);
+    ctx.fillText(subtitle, width / 2, 210);
 
-    // -- LISTA DE ACCIONES --
     const startY = 280;
     const rowHeight = 135;
     const cardWidth = 980;
     const cardHeight = 110;
     const cardX = (width - cardWidth) / 2;
 
-    for (const [i, stock] of topVolumen.entries()) {
+    for (const [i, stock] of stocks.entries()) {
         const y = startY + (i * rowHeight);
         const isUp = parseFloat(String(stock.var_abs).replace(',', '.')) >= 0;
-        const color = isUp ? '#22c55e' : '#ef4444'; // Verde o Rojo brillante
+        const color = isUp ? '#22c55e' : '#ef4444';
         const arrow = isUp ? '▲' : '▼';
 
-        // -- TARJETA CON EFECTO "GLASS" --
         ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
         ctx.lineWidth = 1;
@@ -356,10 +309,8 @@ async function publishToInstagram() {
         ctx.fill();
         ctx.stroke();
 
-        // -- CONTENIDO DE LA TARJETA --
         const contentY = y + cardHeight / 2;
 
-        // Logo (circular)
         const logoX = cardX + 30;
         const logoY = y + 25;
         const logoSize = 60;
@@ -378,19 +329,17 @@ async function publishToInstagram() {
             console.log(`No se pudo cargar logo para ${stock.symbol}`);
         }
 
-        // Símbolo y Nombre
         const textStartX = logoX + logoSize + 30;
         ctx.textAlign = 'left';
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 40px sans-serif';
         ctx.fillText(stock.symbol, textStartX, contentY + 10);
-        
-        ctx.fillStyle = '#94a3b8'; // Gris claro para el nombre
-        ctx.font = '24px sans-serif';
         const symbolWidth = ctx.measureText(stock.symbol).width;
+        
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '24px sans-serif';
         ctx.fillText(stock.nombre, textStartX + symbolWidth + 15, contentY + 8);
 
-        // Precio y Variación (con efecto de brillo)
         ctx.textAlign = 'right';
         ctx.shadowColor = color;
         ctx.shadowBlur = 15;
@@ -402,20 +351,68 @@ async function publishToInstagram() {
         ctx.font = 'bold 28px sans-serif';
         ctx.fillText(`${arrow} ${stock.var_rel}%`, cardX + cardWidth - 30, contentY + 35);
         
-        ctx.shadowColor = 'transparent'; // Resetear sombra para el siguiente loop
+        ctx.shadowColor = 'transparent';
     }
 
-    // -- FOOTER --
     ctx.textAlign = 'center';
     ctx.fillStyle = '#64748b';
     ctx.font = '22px sans-serif';
     ctx.fillText('www.bolsa-de-valores.onrender.com', width / 2, height - 50);
-    ctx.font = '18px sans-serif';
-    ctx.fillText('Información con fines educativos.', width / 2, height - 25);
 
-    const imageBuffer = canvas.toBuffer('image/jpeg');
+    if (pageInfo) {
+        ctx.font = 'bold 18px sans-serif';
+        ctx.fillText(`Página ${pageInfo.current} de ${pageInfo.total}`, width / 2, height - 25);
+    } else {
+        ctx.font = '18px sans-serif';
+        ctx.fillText('Información con fines educativos.', width / 2, height - 25);
+    }
 
-    // 4. Publicar en Instagram
+    return canvas.toBuffer('image/jpeg');
+}
+
+// Función reutilizable para publicar en Instagram
+async function publishToInstagram() {
+    if (!igLoggedIn) {
+        throw new Error("No se ha iniciado sesión en Instagram. Revisa las credenciales del servidor.");
+    }
+
+    // 1. Obtener los datos más recientes del mercado
+    const marketData = await getLatestMarketData();
+
+    if (marketData.length === 0) {
+        throw new Error("No hay datos de mercado para publicar.");
+    }
+
+    // 2. Procesar datos: Ordenar por Volumen y tomar Top 5
+    const parseVE = (str) => {
+        if (!str) return 0;
+        const clean = str.toString().replace(/\./g, '').replace(',', '.');
+        return parseFloat(clean) || 0;
+    };
+
+    const topVolumen = marketData
+        .sort((a, b) => parseVE(b.volumen) - parseVE(a.volumen))
+        .slice(0, 5);
+
+    // 3. Generar caption
+    const lastUpdate = new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas', hour12: true });
+    let caption = `Top 5 Acciones con más operaciones del día\n
+    📊 Bolsa de Valores de Caracas\n\n`;
+    caption += `🗓️ ${lastUpdate}\n
+    Volumen de transacciones:\n\n`;
+    
+    for (const [i, stock] of topVolumen.entries()) {
+        caption += `${i + 1}. ${stock.symbol}: ${parseFloat(stock.volumen).toLocaleString('es-VE')} Bs.\n`;
+    }
+
+    caption += `\n#Bolsadecaracas #dinero #acciones #graficas #graficos #bolsa #valor #valores #caracas #envivo #MercadoDeValores #Venezuela #venezuela #venezolanos #Finanzas\n`;
+    caption += `Información con fines educativos.`;
+
+    // 4. Generar imagen
+    console.log("🖼️  Generando imagen para Top 5...");
+    const imageBuffer = await generateStockImage(topVolumen, 'Top 5 Acciones', 'Más tranzadas del día');
+
+    // 5. Publicar en Instagram
     console.log(`🚀 Publicando Top 5 en Instagram...`);
     await ig.publish.photo({
         file: imageBuffer,
@@ -425,6 +422,71 @@ async function publishToInstagram() {
     return { success: true };
 }
 
+async function publishAllStocksToInstagram() {
+    if (!igLoggedIn) {
+        throw new Error("No se ha iniciado sesión en Instagram. Revisa las credenciales del servidor.");
+    }
+
+    // 1. Get all latest stocks, sorted alphabetically
+    const allStocks = await getLatestMarketData();
+    allStocks.sort((a, b) => a.symbol.localeCompare(b.symbol));
+
+    if (allStocks.length === 0) {
+        throw new Error("No hay datos de mercado para publicar el resumen completo.");
+    }
+
+    // 2. Chunk stocks into groups of 5
+    const chunkSize = 5;
+    const stockChunks = [];
+    for (let i = 0; i < allStocks.length; i += chunkSize) {
+        stockChunks.push(allStocks.slice(i, i + chunkSize));
+    }
+
+    // 3. Generate an image for each chunk
+    const imageItems = [];
+    const totalPages = stockChunks.length;
+    console.log(`🖼️  Generando carrusel de ${totalPages} imágenes...`);
+
+    for (const [i, chunk] of stockChunks.entries()) {
+        const pageInfo = { current: i + 1, total: totalPages };
+        const imageBuffer = await generateStockImage(
+            chunk,
+            'Resumen del Mercado',
+            'Cierre del Día',
+            pageInfo
+        );
+        imageItems.push({ file: imageBuffer });
+    }
+
+    // 4. Create caption and publish album
+    const lastUpdate = new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas', hour12: true });
+    let caption = `Resumen completo del mercado al cierre del día.\n
+    📊 Bolsa de Valores de Caracas\n
+    🗓️ ${lastUpdate}\n\n`;
+    caption += `Desliza para ver todas las acciones. 👉\n\n`;
+    caption += `#Bolsadecaracas #dinero #acciones #bolsa #valor #valores #caracas #MercadoDeValores #Venezuela #Finanzas\n`;
+    caption += `Información con fines educativos.`;
+
+    if (imageItems.length > 1) {
+        console.log(`🚀 Publicando carrusel de ${imageItems.length} imágenes en Instagram...`);
+        await ig.publish.album({
+            items: imageItems,
+            caption: caption,
+        });
+    } else if (imageItems.length === 1) {
+        console.log(`🚀 Publicando resumen (1 imagen) en Instagram...`);
+        await ig.publish.photo({
+            file: imageItems[0].file,
+            caption: caption,
+        });
+    } else {
+        console.log("ℹ️ No se generaron imágenes para el resumen completo.");
+        return { success: false, message: "No images generated." };
+    }
+
+    return { success: true, pages: imageItems.length };
+}
+
 // Endpoint para publicar un resumen en Instagram (Manual)
 app.get('/api/instagram/post-summary', async (req, res) => {
     try {
@@ -432,6 +494,16 @@ app.get('/api/instagram/post-summary', async (req, res) => {
         res.json({ success: true, message: `Top 5 publicado en Instagram exitosamente.` });
     } catch (error) {
         console.error("❌ Error al publicar en Instagram:", error.message);
+        res.status(500).json({ error: "Error interno del servidor al intentar publicar.", details: error.message });
+    }
+});
+
+app.get('/api/instagram/post-all-summary', async (req, res) => {
+    try {
+        const result = await publishAllStocksToInstagram();
+        res.json({ success: true, message: `Resumen completo (${result.pages} páginas) publicado en Instagram exitosamente.` });
+    } catch (error) {
+        console.error("❌ Error al publicar el resumen completo en Instagram:", error.message);
         res.status(500).json({ error: "Error interno del servidor al intentar publicar.", details: error.message });
     }
 });
