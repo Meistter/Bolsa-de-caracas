@@ -281,11 +281,12 @@ async function publishToInstagram() {
     
     let caption = `Top 5 Acciones con más operaciones del día\n
     📊 Bolsa de Valores de Caracas\n\n`;
-    caption += `🗓️ ${lastUpdate}\n\n`;
+    caption += `🗓️ ${lastUpdate}\n\n
+    Volumen de transacciones:`;
     
     for (const [i, stock] of topVolumen.entries()) {
         const icon = parseFloat(stock.var_abs) >= 0 ? '🟢' : '🔴';
-        caption += `${i + 1}. ${stock.symbol}: ${parseFloat(stock.volumen).toLocaleString('es-VE')} VES (${icon} ${stock.var_rel}%)\n`;
+        caption += `${i + 1}. ${stock.symbol}: ${parseFloat(stock.volumen).toLocaleString('es-VE')} VES)\n`;
     }
 
     caption += `\n#Bolsadecaracas #dinero #acciones #graficas #graficos #bolsa #valor #valores #caracas #envivo #MercadoDeValores #Venezuela #venezuela #venezolanos #Finanzas\n`;
@@ -306,11 +307,11 @@ async function publishToInstagram() {
     ctx.fillStyle = '#38bdf8'; // Azul claro
     ctx.font = 'bold 60px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('Top 5 acciones del día', width / 2, 140);
+    ctx.fillText('Top 5 Acciones', width / 2, 140);
     
     ctx.fillStyle = '#94a3b8'; // Gris claro
     ctx.font = '30px sans-serif';
-    ctx.fillText('Volumen de transacciones', width / 2, 200);
+    ctx.fillText('Mas tranzadas del día', width / 2, 200);
 
     // -- LISTA DE ACCIONES --
     const startY = 320;
@@ -356,15 +357,19 @@ async function publishToInstagram() {
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 40px sans-serif';
         ctx.textAlign = 'right';
-        ctx.fillText(`${parseFloat(stock.precio).toLocaleString('es-VE')} VES`, 980, y - 10);
+        ctx.fillText(`${parseFloat(stock.precio).toLocaleString('es-VE')} VES`, 980, y - 20);
 
+        // Variación (Debajo del precio)
+        ctx.fillStyle = color;
+        ctx.font = 'bold 25px sans-serif';
+        ctx.fillText(`${arrow} ${stock.var_rel}%`, 980, y + 15);
     }
 
     // -- FOOTER --
     ctx.fillStyle = '#64748b';
     ctx.font = '25px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('Visita www.bolsa-de-valores.onrender.com para ver gráficos en tiempo real.', width / 2, 1040);
+    ctx.fillText('www.bolsa-de-valores.onrender.com', width / 2, 1040);
 
     const imageBuffer = canvas.toBuffer('image/jpeg');
 
