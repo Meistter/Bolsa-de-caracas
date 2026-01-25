@@ -281,7 +281,7 @@ async function generateStockImage(stocks, title, subtitle, pageInfo = null) {
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 72px sans-serif';
     ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-    ctx.shadowBlur = 10;
+    // ctx.shadowBlur = 10;
     ctx.shadowOffsetY = 5;
     ctx.fillText(title, width / 2, 150);
     ctx.shadowColor = 'transparent';
@@ -342,7 +342,7 @@ async function generateStockImage(stocks, title, subtitle, pageInfo = null) {
 
         ctx.textAlign = 'right';
         ctx.shadowColor = color;
-        ctx.shadowBlur = 15;
+        // ctx.shadowBlur = 15;
 
         ctx.fillStyle = color;
         ctx.font = 'bold 42px sans-serif';
