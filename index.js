@@ -320,8 +320,6 @@ function initChart(canvasId, storageId, isLarge) {
         y: {
           grid: { color: "rgba(255,255,255,0.05)" },
           ticks: { color: "#94a3b8", font: { size: 10 } },
-          // Añade un 15% de espacio por encima del valor máximo para evitar que la línea choque con elementos superiores.
-          grace: '15%'
         },
       },
       plugins: {
