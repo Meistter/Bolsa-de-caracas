@@ -341,7 +341,7 @@ async function generateStockImage(stocks, title, subtitle, pageInfo = null) {
         ctx.fillText(stock.nombre, textStartX + symbolWidth + 15, contentY + 8);
 
         ctx.textAlign = 'right';
-        ctx.shadowColor = transparent;
+        // ctx.shadowColor = transparent';
         // ctx.shadowBlur = 15;
 
         ctx.fillStyle = color;
