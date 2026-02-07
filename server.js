@@ -214,13 +214,13 @@ initDB().then(() => {
 
     // --- KEEP ALIVE PARA RENDER ---
     // Evita que el servidor se duerma haciendo una petición a sí mismo cada 14 min
-    // const APP_URL = process.env.RENDER_EXTERNAL_URL; 
-    // if (APP_URL) {
-    //     console.log(`⏰ Keep-Alive activado apuntando a: ${APP_URL}`);
-    //     setInterval(() => {
-    //         axios.get(`${APP_URL}/api/update-manual`).catch(() => {});
-    //     }, 840000); // 14 minutos (Render duerme a los 15)
-    // }
+    const APP_URL = process.env.RENDER_EXTERNAL_URL; 
+    if (APP_URL) {
+        console.log(`⏰ Keep-Alive activado apuntando a: ${APP_URL}`);
+        setInterval(() => {
+            axios.get(`${APP_URL}/api/update-manual`).catch(() => {});
+        }, 800000); // 14 minutos (Render duerme a los 15)
+    }
 });
 
 // --- RUTAS API ---
