@@ -14,7 +14,7 @@ const companyMap = require('./company_names'); // Importar diccionario de nombre
 const app = express();
 const PORT = process.env.PORT || 3000;
 const fetch_time = parseInt(process.env.UPDATE_INTERVAL) || 600000;
-const cleanup_days = parseInt(process.env.DB_CLEANUP_DAYS) || 30;
+const cleanup_days = parseInt(process.env.DB_CLEANUP_DAYS) || 180;
 app.use(cors());
 app.use(express.static(__dirname)); // Servir archivos estáticos (frontend)
 
@@ -540,11 +540,26 @@ app.get('/api/bolsa/historial/:symbol/:days', async (req, res) => {
     const daysLimit = parseInt(days) || 1;
     
     try {
-        // Obtener TODOS los registros dentro del rango (sin filtrar 1 por día)
-        const result = await pool.query(
-            `SELECT precio, hora, fecha_registro FROM precios WHERE symbol = $1 AND fecha_registro >= NOW() - ($2 || ' days')::INTERVAL ORDER BY fecha_registro ASC`,
-            [symbol, daysLimit]
-        );
+        let query;
+        const params = [symbol, daysLimit];
+
+        if (daysLimit >= 60) {
+            // Para 2 meses o más, obtenemos solo 1 registro por hora para optimizar rendimiento
+            query = `
+                SELECT precio, hora, fecha_registro FROM (
+                    SELECT DISTINCT ON (date_trunc('hour', fecha_registro)) 
+                           precio, hora, fecha_registro 
+                    FROM precios 
+                    WHERE symbol = $1 AND fecha_registro >= NOW() - ($2 || ' days')::INTERVAL 
+                    ORDER BY date_trunc('hour', fecha_registro), fecha_registro ASC
+                ) sub 
+                ORDER BY fecha_registro ASC`;
+        } else {
+            // Para rangos cortos, obtenemos todos los puntos disponibles
+            query = `SELECT precio, hora, fecha_registro FROM precios WHERE symbol = $1 AND fecha_registro >= NOW() - ($2 || ' days')::INTERVAL ORDER BY fecha_registro ASC`;
+        }
+
+        const result = await pool.query(query, params);
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({error: err.message});

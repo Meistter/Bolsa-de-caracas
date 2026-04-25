@@ -89,10 +89,16 @@ function createGlobalRangeSelector() {
   container.style.margin = "20px auto 0 auto";
   container.style.padding = "0 20px";
 
-  [1, 3, 7, 15, 30].forEach((days) => {
+  [1, 3, 7, 15, 30, 60, 90, 180].forEach((days) => {
     const btn = document.createElement("button");
     btn.className = `range-btn ${days === globalRange ? "active" : ""}`;
-    btn.innerText = days === 1 ? "Últimas 24h" : `${days} Días`;
+    
+    // Formatear texto del botón
+    if (days === 1) btn.innerText = "Últimas 24h";
+    else if (days === 30) btn.innerText = "1 Mes";
+    else if (days >= 60) btn.innerText = `${days / 30} Meses`;
+    else btn.innerText = `${days} Días`;
+
     btn.onclick = () => setGlobalRange(days, btn);
     container.appendChild(btn);
   });
