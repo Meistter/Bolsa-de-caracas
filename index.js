@@ -29,6 +29,7 @@ function processNewData(newData) {
     updateGeneralView();
     updateSidebar();
     createGlobalRangeSelector();
+    createIndividualRangeSelector();
 
     // Las miniaturas usan el rango global seleccionado
     marketData.forEach((item) => loadHistory(item.symbol, globalRange, false));
@@ -70,9 +71,10 @@ async function fetchData() {
 
 async function setRange(days, btn) {
   currentRange = days;
-  document
-    .querySelectorAll(".range-btn")
-    .forEach((b) => b.classList.remove("active"));
+  const container = document.getElementById("individual-range-selector");
+  if (container) {
+    container.querySelectorAll(".range-btn").forEach((b) => b.classList.remove("active"));
+  }
   btn.classList.add("active");
   if (selectedSymbol) await loadHistory(selectedSymbol, currentRange, true);
 }
@@ -114,6 +116,36 @@ async function setGlobalRange(days, btn) {
   btn.classList.add("active");
   // Recargar todas las gráficas del dashboard
   marketData.forEach((item) => loadHistory(item.symbol, globalRange, false));
+}
+
+function createIndividualRangeSelector() {
+  const viewSingle = document.getElementById("view-single");
+  const mainChartArea = viewSingle ? viewSingle.querySelector(".main-chart-area") : null;
+  if (!mainChartArea || document.getElementById("individual-range-selector")) return;
+
+  const container = document.createElement("div");
+  container.id = "individual-range-selector";
+  container.className = "range-selector";
+
+  [1, 3, 7, 15, 30, 60, 90, 180].forEach((days) => {
+    const btn = document.createElement("button");
+    btn.className = `range-btn ${days === currentRange ? "active" : ""}`;
+    
+    if (days === 1) btn.innerText = "Últimas 24h";
+    else if (days === 30) btn.innerText = "1 Mes";
+    else if (days >= 60) btn.innerText = `${days / 30} Meses`;
+    else btn.innerText = `${days} Días`;
+
+    btn.onclick = () => setRange(days, btn);
+    container.appendChild(btn);
+  });
+
+  const bigChartContainer = mainChartArea.querySelector(".big-chart-container");
+  if (bigChartContainer) {
+    mainChartArea.insertBefore(container, bigChartContainer);
+  } else {
+    mainChartArea.prepend(container);
+  }
 }
 
 async function loadHistory(symbol, days, isLarge) {
@@ -391,8 +423,27 @@ function connectWebSocket() {
     };
 }
 
+function setupNavigation() {
+  const btnAll = document.getElementById("btn-all");
+  const btnSingle = document.getElementById("btn-single");
+  if (!btnAll || !btnSingle) return;
+
+  btnAll.innerText = "Lista de Acciones";
+  btnSingle.innerText = "Vista Individual";
+
+  const nav = btnAll.parentElement;
+  if (nav) {
+    // Reordenar: Lista de Acciones primero (Landing Page)
+    nav.insertBefore(btnAll, btnSingle);
+  }
+
+  // Asegurar que la vista inicial sea la landing page y el botón esté activo
+  switchView('all');
+}
+
 // Iniciar la aplicación
 fetchData(); // Primera carga inmediata
 updateMarketStatus(); // Verificar estado inicial
 setInterval(updateMarketStatus, 60000); // Actualizar estado cada minuto
 connectWebSocket(); // Iniciar conexión WebSocket
+setupNavigation();
