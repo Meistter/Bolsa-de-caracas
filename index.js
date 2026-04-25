@@ -28,8 +28,6 @@ function processNewData(newData) {
 
     updateGeneralView();
     updateSidebar();
-    createGlobalRangeSelector();
-    createIndividualRangeSelector();
 
     // Las miniaturas usan el rango global seleccionado
     marketData.forEach((item) => loadHistory(item.symbol, globalRange, false));
@@ -37,6 +35,8 @@ function processNewData(newData) {
     if (selectedSymbol) {
       updateIndividualView();
       loadHistory(selectedSymbol, currentRange, true);
+    } else if (document.getElementById("view-single").style.display === "flex" && marketData.length > 0) {
+      selectCompany(marketData[0].symbol);
     }
 }
 
@@ -428,17 +428,21 @@ function setupNavigation() {
   const btnSingle = document.getElementById("btn-single");
   if (!btnAll || !btnSingle) return;
 
-  btnAll.innerText = "Lista de Acciones";
-  btnSingle.innerText = "Vista Individual";
+  btnAll.innerText = "Vista General";
+  btnSingle.innerText = "Lista de Acciones";
 
   const nav = btnAll.parentElement;
   if (nav) {
-    // Reordenar: Lista de Acciones primero (Landing Page)
-    nav.insertBefore(btnAll, btnSingle);
+    // Reordenar: Vista Individual primero (Landing Page)
+    nav.insertBefore(btnSingle, btnAll);
   }
 
-  // Asegurar que la vista inicial sea la landing page y el botón esté activo
-  switchView('all');
+  // Inicializar los selectores de rango una sola vez al configurar la navegación
+  createGlobalRangeSelector();
+  createIndividualRangeSelector();
+
+  // Asegurar que la vista inicial sea la Vista Individual y el botón esté activo
+  switchView('single');
 }
 
 // Iniciar la aplicación
